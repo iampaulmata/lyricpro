@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:lyricpro_app/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:lyricpro_app/features/auth/presentation/login_screen.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -23,7 +23,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     super.initState();
     _timer = Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
-      context.goNamed(DashboardScreen.routeName);
+      context.goNamed(LoginScreen.routeName);
     });
   }
 

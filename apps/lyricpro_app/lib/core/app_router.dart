@@ -3,11 +3,13 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lyricpro_app/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
+import 'package:lyricpro_app/features/library/presentation/library_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
 import 'package:lyricpro_app/features/setlists/presentation/setlist_screen.dart';
 import 'package:lyricpro_app/features/settings/presentation/settings_screen.dart';
 import 'package:lyricpro_app/features/shared/sample_data.dart';
 import 'package:lyricpro_app/features/splash/presentation/splash_screen.dart';
+import 'package:lyricpro_app/features/auth/presentation/login_screen.dart';
 
 class AppRouter {
   AppRouter({required this.ref});
@@ -26,6 +28,16 @@ class AppRouter {
         path: '/dashboard',
         name: DashboardScreen.routeName,
         builder: (context, state) => const DashboardScreen(),
+      ),
+      GoRoute(
+        path: '/library',
+        name: LibraryScreen.routeName,
+        builder: (context, state) => const LibraryScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        name: LoginScreen.routeName,
+        builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: '/setlist',

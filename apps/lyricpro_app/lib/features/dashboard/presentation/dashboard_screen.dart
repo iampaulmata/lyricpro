@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
+import 'package:lyricpro_app/features/library/presentation/library_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
 import 'package:lyricpro_app/features/setlists/presentation/setlist_screen.dart';
 import 'package:lyricpro_app/features/settings/presentation/settings_screen.dart';
@@ -86,9 +87,12 @@ class _Sidebar extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const _SidebarSectionTitle('Navigation'),
-            const _SidebarNavItem(
+            _SidebarNavItem(
               icon: Icons.library_music_outlined,
               label: 'Library',
+              onTap: () {
+                context.pushNamed(LibraryScreen.routeName);
+              },
             ),
             const _SidebarNavItem(
               icon: Icons.set_meal_outlined,
@@ -150,9 +154,13 @@ class _DashboardDrawer extends StatelessWidget {
               syncStatus: SyncStatus.pending,
             ),
             const Divider(),
-            const _SidebarNavItem(
+            _SidebarNavItem(
               icon: Icons.library_music_outlined,
               label: 'Library',
+              onTap: () {
+                Navigator.of(context).maybePop();
+                context.pushNamed(LibraryScreen.routeName);
+              },
             ),
             const _SidebarNavItem(
               icon: Icons.set_meal_outlined,
@@ -446,11 +454,13 @@ class _SidebarNavItem extends StatelessWidget {
     required this.icon,
     required this.label,
     this.isActive = false,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool isActive;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -465,7 +475,7 @@ class _SidebarNavItem extends StatelessWidget {
         tileColor: background,
         leading: Icon(icon, color: isActive ? scheme.primary : null),
         title: Text(label),
-        onTap: () {},
+        onTap: onTap,
       ),
     );
   }

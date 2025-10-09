@@ -96,6 +96,42 @@ const List<SampleSong> sampleSongs = [
     tag: 'Pop',
     duration: '04:00',
   ),
+  SampleSong(
+    id: 'song-5',
+    title: 'River Flow',
+    artist: 'Alex Rivera',
+    key: 'E',
+    tempo: 120,
+    tag: 'Rock',
+    duration: '03:58',
+  ),
+  SampleSong(
+    id: 'song-6',
+    title: 'Still Waters',
+    artist: 'Morgan Blake',
+    key: 'C',
+    tempo: 82,
+    tag: 'Acoustic',
+    duration: '04:25',
+  ),
+  SampleSong(
+    id: 'song-7',
+    title: 'Midnight Drive',
+    artist: 'Jamie Cross',
+    key: 'F#',
+    tempo: 112,
+    tag: 'Synthwave',
+    duration: '03:40',
+  ),
+  SampleSong(
+    id: 'song-8',
+    title: 'Golden Hour',
+    artist: 'Young & Radiant',
+    key: 'D',
+    tempo: 95,
+    tag: 'Pop',
+    duration: '04:12',
+  ),
 ];
 
 const List<SampleSetList> sampleSetLists = [
