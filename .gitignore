@@ -1,0 +1,37 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Root-level tooling
+.env
+.env.local
+.supabase/
+
+# Node backend artifacts
+backend/api/node_modules/
+backend/api/dist/
+
+# Flutter build outputs (duplicates of app-level ignores for safety)
+apps/lyricpro_app/build/
+apps/lyricpro_app/.dart_tool/
+apps/lyricpro_app/.packages
+# Flutter build outputs (duplicates of app-level ignores for safety)
+apps/lyricpro_app/build/
+apps/lyricpro_app/.dart_tool/
+apps/lyricpro_app/.packages
+apps/lyricpro_app/ios/
+apps/lyricpro_app/android/
+apps/lyricpro_app/web/
+apps/lyricpro_app/linux/
+apps/lyricpro_app/macos/
+apps/lyricpro_app/windows/
+apps/lyricpro_app/.metadata
+apps/lyricpro_app/lyricpro_app.iml
+apps/lyricpro_app/test/widget_test.dart
+apps/flutter.tar.xz
+apps/android-studio.tar.gz
+apps/cmdline-tools/
+
+# IDE files
+.idea/
+.vscode/

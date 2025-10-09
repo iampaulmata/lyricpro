@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { Router } from 'express'
 
-import { healthRouter } from './health';
-import { syncRouter } from './sync';
+import { healthRouter } from './health'
+import { syncRouter } from './sync'
 
-const router = Router();
+const router = Router()
 
-router.use('/health', healthRouter);
-router.use('/sync', syncRouter);
+router.use('/health', healthRouter)
+router.use('/sync', syncRouter)
 
-export { router };
+export { router }
