@@ -1,0 +1,19 @@
+# Flutter/Dart/Pub related
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.flutter-plugins
+.idea/
+.vscode/
+pubspec.lock
+
+# Device-specific
+ios/
+android/
+web/
+linux/
+macos/
+windows/
+test_outputs/
