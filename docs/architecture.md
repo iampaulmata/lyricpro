@@ -54,7 +54,7 @@ LyricPro follows a **local-first, sync-later** model:
 ```
 ┌──────────────┐    OAuth/Supabase Auth     ┌─────────────┐
 │  Flutter UI  │◀──────────────────────────▶│  Auth Edge  │
-└──────┬───────┘                           └────┬────────┘
+└──────┬───────┘                            └────┬────────┘
        │ Local DB CRUD                            │ JWT tokens
 ┌──────▼───────┐ Sync Queue    Realtime           │
 │ Drift/SQLite │◀────────────▶ Channels ◀────────┘
