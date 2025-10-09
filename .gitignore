@@ -32,6 +32,9 @@ apps/flutter.tar.xz
 apps/android-studio.tar.gz
 apps/cmdline-tools/
 
+# Design artifacts
+mockups/
+
 # IDE files
 .idea/
 .vscode/
