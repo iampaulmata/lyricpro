@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lyricpro_app/features/auth/presentation/login_screen.dart';
 import 'package:lyricpro_app/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
 import 'package:lyricpro_app/features/library/presentation/library_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
-import 'package:lyricpro_app/features/settings/presentation/settings_screen.dart';
 import 'package:lyricpro_app/features/setlists/presentation/setlist_screen.dart';
+import 'package:lyricpro_app/features/settings/presentation/settings_screen.dart';
 import 'package:lyricpro_app/features/splash/presentation/splash_screen.dart';
+
 
 class AppRouter {
   AppRouter();

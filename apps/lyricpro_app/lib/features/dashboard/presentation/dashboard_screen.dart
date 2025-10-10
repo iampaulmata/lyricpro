@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:lyricpro_app/core/config/app_env.dart';
 import 'package:lyricpro_app/data/repositories/library_repository.dart';
 import 'package:lyricpro_app/data/repositories/setlist_repository.dart';
+import 'package:lyricpro_app/data/services/sync_service.dart';
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
 import 'package:lyricpro_app/features/library/presentation/library_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
@@ -20,6 +22,16 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final songsAsync = ref.watch(librarySongsProvider);
     final setlistsAsync = ref.watch(setlistsProvider);
+    final supabaseEnabled = AppEnv.hasSupabaseCredentials;
+    final pendingSyncAsync = supabaseEnabled
+        ? ref.watch(pendingSyncCountProvider)
+        : const AsyncValue.data(0);
+    final syncState = supabaseEnabled
+        ? ref.watch(syncControllerProvider)
+        : const SyncState.initial();
+    final SyncController? syncController = supabaseEnabled
+        ? ref.read(syncControllerProvider.notifier)
+        : null;
 
     return songsAsync.when(
       data: (songs) {
@@ -32,6 +44,24 @@ class DashboardScreen extends ConsumerWidget {
             return LayoutBuilder(
               builder: (context, constraints) {
                 final bool isLarge = constraints.maxWidth >= 1200;
+                final pendingCount = pendingSyncAsync.maybeWhen(
+                  data: (value) => value,
+                  orElse: () => 0,
+                );
+                final SyncStatus syncStatus;
+                if (!supabaseEnabled) {
+                  syncStatus = SyncStatus.offline;
+                } else if (syncState.lastError != null) {
+                  syncStatus = SyncStatus.offline;
+                } else if (syncState.isSyncing || pendingCount > 0) {
+                  syncStatus = SyncStatus.pending;
+                } else {
+                  syncStatus = SyncStatus.synced;
+                }
+
+                if (supabaseEnabled && pendingCount > 0 && !syncState.isSyncing) {
+                  syncController?.processQueue();
+                }
 
                 return Scaffold(
                   appBar: isLarge
@@ -73,12 +103,18 @@ class DashboardScreen extends ConsumerWidget {
                         ),
                   drawer: isLarge
                       ? null
-                      : _DashboardDrawer(tags: tagSet.toList()),
+                      : _DashboardDrawer(
+                          tags: tagSet.toList(),
+                          syncStatus: syncStatus,
+                        ),
                   body: SafeArea(
                     child: Row(
                       children: [
                         if (isLarge)
-                          _Sidebar(tags: tagSet.toList()),
+                          _Sidebar(
+                            tags: tagSet.toList(),
+                            syncStatus: syncStatus,
+                          ),
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.all(24),
@@ -119,9 +155,10 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({required this.tags});
+  const _Sidebar({required this.tags, required this.syncStatus});
 
   final List<String> tags;
+  final SyncStatus syncStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -153,7 +190,7 @@ class _Sidebar extends StatelessWidget {
             _ProfileCard(
               name: 'Alex Rivera',
               role: 'Lead Vocal • Master device',
-              syncStatus: SyncStatus.synced,
+              syncStatus: syncStatus,
             ),
             const SizedBox(height: 24),
             const _SidebarSectionTitle('Navigation'),
@@ -209,9 +246,10 @@ class _Sidebar extends StatelessWidget {
 }
 
 class _DashboardDrawer extends StatelessWidget {
-  const _DashboardDrawer({required this.tags});
+  const _DashboardDrawer({required this.tags, required this.syncStatus});
 
   final List<String> tags;
+  final SyncStatus syncStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -243,7 +281,7 @@ class _DashboardDrawer extends StatelessWidget {
             _ProfileCard(
               name: 'Alex Rivera',
               role: 'Lead Vocal • Master device',
-              syncStatus: SyncStatus.pending,
+              syncStatus: syncStatus,
             ),
             const Divider(),
             _SidebarNavItem(

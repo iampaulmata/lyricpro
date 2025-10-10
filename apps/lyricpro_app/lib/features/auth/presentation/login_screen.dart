@@ -1,14 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import 'package:lyricpro_app/core/config/app_env.dart';
+import 'package:lyricpro_app/data/models/app_user.dart';
+import 'package:lyricpro_app/data/services/auth_service.dart';
+import 'package:lyricpro_app/data/services/sync_service.dart';
 import 'package:lyricpro_app/features/dashboard/presentation/dashboard_screen.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends ConsumerWidget {
   const LoginScreen({super.key});
 
   static const String routeName = 'login';
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final supabaseEnabled = AppEnv.hasSupabaseCredentials;
+
+    AsyncValue<AppUser?> authState = const AsyncValue.data(null);
+    bool isLoading = false;
+
+    if (supabaseEnabled) {
+      ref.listen<AsyncValue<AppUser?>>(authControllerProvider, (previous, next) {
+        next.when(
+          data: (user) {
+            if (user != null) {
+              final syncController = ref.read(syncControllerProvider.notifier);
+              syncController.scheduleBackgroundSync();
+              syncController.processQueue();
+              context.goNamed(DashboardScreen.routeName);
+            }
+          },
+          error: (error, _) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Sign-in failed: $error')),
+            );
+          },
+          loading: () {},
+        );
+      });
+
+      authState = ref.watch(authControllerProvider);
+      isLoading = authState.isLoading;
+    }
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -42,7 +77,39 @@ class LoginScreen extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 32),
-                    _AuthButtonsColumn(width: contentWidth),
+                    if (supabaseEnabled)
+                      _AuthButtonsColumn(
+                        width: contentWidth,
+                        isLoading: isLoading,
+                        onSignIn: (provider) {
+                          ref
+                              .read(authControllerProvider.notifier)
+                              .signIn(provider);
+                        },
+                      ),
+                    if (!supabaseEnabled)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        child: Text(
+                          'Cloud sign-in is disabled. Add Supabase credentials to enable account sync.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Theme.of(context).hintColor),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    if (supabaseEnabled && authState.hasError)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text(
+                          authState.error.toString(),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                     const SizedBox(height: 24),
                     SizedBox(
                       width: contentWidth,
@@ -80,9 +147,15 @@ class LoginScreen extends StatelessWidget {
 }
 
 class _AuthButtonsColumn extends StatelessWidget {
-  const _AuthButtonsColumn({required this.width});
+  const _AuthButtonsColumn({
+    required this.width,
+    required this.isLoading,
+    required this.onSignIn,
+  });
 
   final double width;
+  final bool isLoading;
+  final void Function(AuthProvider provider) onSignIn;
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +165,7 @@ class _AuthButtonsColumn extends StatelessWidget {
           width: width,
           icon: Icons.account_circle_outlined,
           label: 'Continue with Google',
-          onPressed: () {},
+          onPressed: isLoading ? null : () => onSignIn(AuthProvider.google),
           backgroundColor: Colors.white,
           foregroundColor: Colors.black87,
         ),
@@ -101,15 +174,15 @@ class _AuthButtonsColumn extends StatelessWidget {
           width: width,
           icon: Icons.facebook_outlined,
           label: 'Continue with Facebook',
-          onPressed: () {},
+          onPressed: isLoading ? null : () => onSignIn(AuthProvider.facebook),
           backgroundColor: const Color(0xFF1778F2),
         ),
         const SizedBox(height: 16),
         _AuthButton(
           width: width,
-          icon: Icons.email_outlined,
-          label: 'Continue with Email',
-          onPressed: () {},
+          icon: Icons.apple,
+          label: 'Continue with Apple',
+          onPressed: isLoading ? null : () => onSignIn(AuthProvider.apple),
         ),
       ],
     );
@@ -129,7 +202,7 @@ class _AuthButton extends StatelessWidget {
   final double width;
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final Color? backgroundColor;
   final Color? foregroundColor;
 
