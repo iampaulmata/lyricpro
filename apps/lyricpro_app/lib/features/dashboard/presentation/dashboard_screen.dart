@@ -1,13 +1,14 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
+import 'package:lyricpro_app/data/repositories/library_repository.dart';
+import 'package:lyricpro_app/data/repositories/setlist_repository.dart';
 import 'package:lyricpro_app/features/library/presentation/library_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
 import 'package:lyricpro_app/features/setlists/presentation/setlist_screen.dart';
 import 'package:lyricpro_app/features/settings/presentation/settings_screen.dart';
-import 'package:lyricpro_app/features/shared/sample_data.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -16,70 +17,110 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bool isLarge = constraints.maxWidth >= 1200;
+    final songsAsync = ref.watch(librarySongsProvider);
+    final setlistsAsync = ref.watch(setlistsProvider);
 
-        return Scaffold(
-          appBar: isLarge
-              ? null
-              : AppBar(
-                  title: Row(
-                    children: [
-                      Image.asset(
-                        'assets/icons/LyricPro_icon.png',
-                        height: 28,
-                        semanticLabel: 'LyricPro logo',
-                      ),
-                      const SizedBox(width: 12),
-                      const Text('LyricPro'),
-                    ],
-                  ),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.dashboard_customize_outlined),
-                      onPressed: () {},
-                      tooltip: 'Customize',
+    return songsAsync.when(
+      data: (songs) {
+        final tagSet = <String>{};
+        for (final song in songs) {
+          tagSet.addAll(song.tags);
+        }
+        return setlistsAsync.when(
+          data: (setlists) {
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final bool isLarge = constraints.maxWidth >= 1200;
+
+                return Scaffold(
+                  appBar: isLarge
+                      ? null
+                      : AppBar(
+                          title: Row(
+                            children: [
+                              Image.asset(
+                                'assets/icons/LyricPro_icon.png',
+                                height: 28,
+                                semanticLabel: 'LyricPro logo',
+                              ),
+                              const SizedBox(width: 12),
+                              const Text('LyricPro'),
+                            ],
+                          ),
+                          actions: [
+                            IconButton(
+                              icon: const Icon(Icons.dashboard_customize_outlined),
+                              onPressed: () {},
+                              tooltip: 'Customize',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.settings_outlined),
+                              onPressed: () {
+                                context.pushNamed(SettingsScreen.routeName);
+                              },
+                            ),
+                          ],
+                          bottom: PreferredSize(
+                            preferredSize: const Size.fromHeight(64),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                              child: _SearchField(
+                                hint: 'Search songs, artists, tags…',
+                              ),
+                            ),
+                          ),
+                        ),
+                  drawer: isLarge
+                      ? null
+                      : _DashboardDrawer(tags: tagSet.toList()),
+                  body: SafeArea(
+                    child: Row(
+                      children: [
+                        if (isLarge)
+                          _Sidebar(tags: tagSet.toList()),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: _DashboardContent(
+                              isWide: isLarge,
+                              songs: songs,
+                              setlists: setlists,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.settings_outlined),
-                      onPressed: () {
-                        context.pushNamed(SettingsScreen.routeName);
-                      },
-                    ),
-                  ],
-                  bottom: PreferredSize(
-                    preferredSize: const Size.fromHeight(64),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: _SearchField(
-                        hint: 'Search songs, artists, tags…',
-                      ),
-                    ),
                   ),
-                ),
-          drawer: isLarge ? null : const _DashboardDrawer(),
-          body: SafeArea(
-            child: Row(
-              children: [
-                if (isLarge) const _Sidebar(),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: _DashboardContent(isWide: isLarge),
-                  ),
-                ),
-              ],
-            ),
+                );
+              },
+            );
+          },
+          error: (error, stack) => Scaffold(
+            appBar: AppBar(title: const Text('Dashboard')),
+            body: Center(child: Text('Failed to load set lists: $error')),
+          ),
+          loading: () => const Scaffold(
+            appBar: AppBar(title: Text('Dashboard')),
+            body: Center(child: CircularProgressIndicator()),
           ),
         );
       },
+      error: (error, stack) => Scaffold(
+        appBar: AppBar(title: const Text('Dashboard')),
+        body: Center(child: Text('Failed to load songs: $error')),
+      ),
+      loading: () => const Scaffold(
+        appBar: AppBar(title: Text('Dashboard')),
+        body: Center(child: CircularProgressIndicator()),
+      ),
     );
   }
 }
 
 class _Sidebar extends StatelessWidget {
-  const _Sidebar();
+  const _Sidebar({required this.tags});
+
+  final List<String> tags;
 
   @override
   Widget build(BuildContext context) {
@@ -145,13 +186,13 @@ class _Sidebar extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final tag in sampleTags)
+                for (final tag in tags.take(10))
                   Chip(
                     label: Text(tag),
                     avatar: const Icon(Icons.tag, size: 16),
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                   ),
+                if (tags.isEmpty)
+                  const Text('No tags yet'),
                 ActionChip(
                   avatar: const Icon(Icons.add),
                   label: const Text('Add tag'),
@@ -167,7 +208,9 @@ class _Sidebar extends StatelessWidget {
 }
 
 class _DashboardDrawer extends StatelessWidget {
-  const _DashboardDrawer();
+  const _DashboardDrawer({required this.tags});
+
+  final List<String> tags;
 
   @override
   Widget build(BuildContext context) {
@@ -206,7 +249,7 @@ class _DashboardDrawer extends StatelessWidget {
               icon: Icons.library_music_outlined,
               label: 'Library',
               onTap: () {
-                Navigator.of(context).maybePop();
+                Navigator.of(context).pop();
                 context.pushNamed(LibraryScreen.routeName);
               },
             ),
@@ -228,6 +271,18 @@ class _DashboardDrawer extends StatelessWidget {
               label: 'Hardware bindings',
             ),
             const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final tag in tags.take(10)) Chip(label: Text(tag)),
+                  if (tags.isEmpty)
+                    const Text('No tags yet'),
+                ],
+              ),
+            ),
             ListTile(
               leading: const Icon(Icons.settings_outlined),
               title: const Text('Settings'),
@@ -244,130 +299,131 @@ class _DashboardDrawer extends StatelessWidget {
 }
 
 class _DashboardContent extends StatelessWidget {
-  const _DashboardContent({required this.isWide});
+  const _DashboardContent({
+    required this.isWide,
+    required this.songs,
+    required this.setlists,
+  });
 
   final bool isWide;
+  final List<SongWithTags> songs;
+  final List<SetlistSummary> setlists;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double columnGap = isWide ? 32 : 16;
-
-        return CustomScrollView(
-          slivers: [
-            if (isWide) ...[
-              SliverToBoxAdapter(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _SearchField(
-                        hint: 'Search songs, artists, tags…',
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    FilledButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.add),
-                      label: const Text('Quick add'),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.outlined(
-                      onPressed: () {},
-                      icon: const Icon(Icons.tune),
-                      tooltip: 'Filters',
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: () {
-                        context.pushNamed(SettingsScreen.routeName);
-                      },
-                      icon: const Icon(Icons.settings_outlined),
-                      tooltip: 'Settings',
-                    ),
-                  ],
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-            ],
-            SliverToBoxAdapter(
-              child: Wrap(
-                spacing: columnGap,
-                runSpacing: columnGap,
-                children: [
-                  SizedBox(
-                    width: isWide ? constraints.maxWidth * 0.6 : double.infinity,
-                    child: _SetListCarousel(),
+    return CustomScrollView(
+      slivers: [
+        if (isWide) ...[
+          SliverToBoxAdapter(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _SearchField(
+                    hint: 'Search songs, artists, tags…',
                   ),
-                  SizedBox(
-                    width: isWide ? constraints.maxWidth * 0.32 : double.infinity,
-                    child: const _ActivityCard(),
+                ),
+                const SizedBox(width: 16),
+                FilledButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.add),
+                  label: const Text('Quick add'),
+                ),
+                const SizedBox(width: 8),
+                IconButton.outlined(
+                  onPressed: () {},
+                  icon: const Icon(Icons.tune),
+                  tooltip: 'Filters',
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () {
+                    context.pushNamed(SettingsScreen.routeName);
+                  },
+                  icon: const Icon(Icons.settings_outlined),
+                  tooltip: 'Settings',
+                ),
+              ],
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        ],
+        SliverToBoxAdapter(
+          child: Wrap(
+            spacing: isWide ? 32 : 16,
+            runSpacing: isWide ? 32 : 16,
+            children: [
+              SizedBox(
+                width: isWide ? 680 : double.infinity,
+                child: _SetListCarousel(setlists: setlists),
+              ),
+              SizedBox(
+                width: isWide ? 320 : double.infinity,
+                child: _ActivityCard(songs: songs),
+              ),
+            ],
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        SliverToBoxAdapter(
+          child: Card(
+            clipBehavior: Clip.antiAlias,
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Library snapshot',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const Spacer(),
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(label: Text('All songs'), value: 'all'),
+                          ButtonSegment(label: Text('Favorites'), value: 'favorites'),
+                          ButtonSegment(label: Text('Shared'), value: 'shared'),
+                        ],
+                        selected: const {'all'},
+                        onSelectionChanged: (_) {},
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  LayoutBuilder(
+                    builder: (context, subConstraints) {
+                      final crossAxisCount =
+                          subConstraints.maxWidth ~/ 200;
+                      return GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount.clamp(1, 4),
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 4 / 3,
+                        ),
+                        itemCount: songs.take(8).length,
+                        itemBuilder: (context, index) {
+                          final song = songs[index];
+                          return _SongCard(song: song);
+                        },
+                      );
+                    },
                   ),
                 ],
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-            SliverToBoxAdapter(
-              child: Card(
-                clipBehavior: Clip.antiAlias,
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Library snapshot',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const Spacer(),
-                          SegmentedButton<String>(
-                            segments: const [
-                              ButtonSegment(label: Text('All songs'), value: 'all'),
-                              ButtonSegment(label: Text('Favorites'), value: 'favorites'),
-                              ButtonSegment(label: Text('Shared'), value: 'shared'),
-                            ],
-                            selected: const {'all'},
-                            onSelectionChanged: (_) {},
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      LayoutBuilder(
-                        builder: (context, subConstraints) {
-                          final crossAxisCount = subConstraints.maxWidth ~/ 200;
-                          return GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: crossAxisCount.clamp(1, 4),
-                              crossAxisSpacing: 16,
-                              mainAxisSpacing: 16,
-                              childAspectRatio: 4 / 3,
-                            ),
-                            itemCount: sampleSongs.length,
-                            itemBuilder: (context, index) {
-                              final song = sampleSongs[index];
-                              return _SongCard(song: song);
-                            },
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-            SliverToBoxAdapter(
-              child: _PerformanceCallout(),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 48)),
-          ],
-        );
-      },
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        const SliverToBoxAdapter(
+          child: _PerformanceCallout(),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 48)),
+      ],
     );
   }
 }
@@ -405,75 +461,8 @@ class _ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final statusColor = switch (syncStatus) {
-      SyncStatus.synced => colorScheme.secondary,
-      SyncStatus.pending => colorScheme.primary,
-      SyncStatus.offline => colorScheme.error,
-    };
+*** End Patch
 
-    return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: colorScheme.primary.withValues(alpha: 0.15),
-                  radius: 28,
-                  child: Text(
-                    name.isNotEmpty ? name.characters.first : '?',
-                    style: TextStyle(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 24,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(role),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(switch (syncStatus) {
-                  SyncStatus.synced => 'Synced',
-                  SyncStatus.pending => 'Pending changes',
-                  SyncStatus.offline => 'Offline mode',
-                }),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 enum SyncStatus { synced, pending, offline }
 
@@ -530,15 +519,31 @@ class _SidebarNavItem extends StatelessWidget {
 }
 
 class _SetListCarousel extends StatelessWidget {
+  const _SetListCarousel({required this.setlists});
+
+  final List<SetlistSummary> setlists;
+
   @override
   Widget build(BuildContext context) {
+    if (setlists.isEmpty) {
+      return Container(
+        height: 200,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        ),
+        child: const Text('No set lists yet. Create your first one!'),
+      );
+    }
+
     return SizedBox(
       height: 260,
       child: PageView.builder(
         controller: PageController(viewportFraction: 0.88),
-        itemCount: sampleSetLists.length,
+        itemCount: setlists.length,
         itemBuilder: (context, index) {
-          final setList = sampleSetLists[index];
+          final setList = setlists[index];
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Card(
@@ -548,7 +553,7 @@ class _SetListCarousel extends StatelessWidget {
                 onTap: () {
                   context.pushNamed(
                     SetlistScreen.routeName,
-                    extra: setList,
+                    extra: setList.setlist.id,
                   );
                 },
                 child: Container(
@@ -573,7 +578,7 @@ class _SetListCarousel extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            setList.title,
+                            setList.setlist.title,
                             style: Theme.of(context)
                                 .textTheme
                                 .headlineSmall
@@ -582,18 +587,22 @@ class _SetListCarousel extends StatelessWidget {
                           const Spacer(),
                           FilledButton.tonal(
                             style: FilledButton.styleFrom(
-                              backgroundColor:
-                                  Colors.black.withValues(alpha: 0.2),
+                              backgroundColor: Colors.black.withValues(alpha: 0.2),
                               foregroundColor: Colors.white,
                             ),
-                            onPressed: () {},
+                            onPressed: () {
+                              context.pushNamed(
+                                SetlistScreen.routeName,
+                                extra: setList.setlist.id,
+                              );
+                            },
                             child: const Text('Open set list'),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        '${setList.songCount} songs • ${setList.eventDate}',
+                        '${setList.songCount} songs',
                         style: Theme.of(context)
                             .textTheme
                             .labelLarge
@@ -603,18 +612,14 @@ class _SetListCarousel extends StatelessWidget {
                       Wrap(
                         spacing: 16,
                         runSpacing: 8,
-                        children: [
+                        children: const [
                           _SetListStatChip(
                             icon: Icons.timer_outlined,
-                            label: '${setList.duration} total runtime',
+                            label: 'Runtime auto-calculated',
                           ),
                           _SetListStatChip(
                             icon: Icons.devices_other_outlined,
-                            label: '3 devices linked',
-                          ),
-                          _SetListStatChip(
-                            icon: Icons.note_alt_outlined,
-                            label: 'Intro with vamp • Bridge hold',
+                            label: 'Devices synced soon',
                           ),
                         ],
                       ),
@@ -657,11 +662,17 @@ class _SetListStatChip extends StatelessWidget {
 }
 
 class _ActivityCard extends StatelessWidget {
-  const _ActivityCard();
+  const _ActivityCard({required this.songs});
+
+  final List<SongWithTags> songs;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final latest = songs
+        .sorted((a, b) => b.song.updatedAt.compareTo(a.song.updatedAt))
+        .take(5)
+        .toList();
 
     return Card(
       elevation: 0,
@@ -685,35 +696,55 @@ class _ActivityCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemBuilder: (context, index) {
-                final activity = sampleActivity[index];
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    child: Text(activity.initials),
-                  ),
-                  title: Text(activity.title),
-                  subtitle: Text(activity.subtitle),
-                  trailing: Text(activity.timestamp),
-                );
-              },
-              separatorBuilder: (_, __) => const Divider(),
-              itemCount: sampleActivity.length,
-            ),
+            if (latest.isEmpty)
+              const Text('No recent edits yet. Start updating your library!')
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: latest.length,
+                separatorBuilder: (_, __) => const Divider(),
+                itemBuilder: (context, index) {
+                  final song = latest[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      child: Text(song.song.title.characters.first),
+                    ),
+                    title: Text('Updated ${song.song.title}'),
+                    subtitle: Text(
+                      'Last edited ${_timeAgo(song.song.updatedAt)}',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      context.pushNamed(
+                        EditorScreen.routeName,
+                        extra: song.song.id,
+                      );
+                    },
+                  );
+                },
+              ),
           ],
         ),
       ),
     );
+  }
+
+  String _timeAgo(DateTime time) {
+    final now = DateTime.now();
+    final diff = now.difference(time);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
   }
 }
 
 class _SongCard extends StatelessWidget {
   const _SongCard({required this.song});
 
-  final SampleSong song;
+  final SongWithTags song;
 
   @override
   Widget build(BuildContext context) {
@@ -721,7 +752,7 @@ class _SongCard extends StatelessWidget {
       elevation: 0,
       child: InkWell(
         onTap: () {
-          context.pushNamed(EditorScreen.routeName, extra: song);
+          context.pushNamed(EditorScreen.routeName, extra: song.song.id);
         },
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -735,24 +766,25 @@ class _SongCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      song.title,
+                      song.song.title,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                  Icon(Icons.chevron_right,
-                      color: Theme.of(context).colorScheme.primary),
+                  const Icon(Icons.chevron_right),
                 ],
               ),
               const Spacer(),
-              Text(song.artist),
+              Text(song.song.artist ?? 'Unknown artist'),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 4,
                 children: [
-                  _MiniChip(label: 'Key ${song.key}'),
-                  _MiniChip(label: '${song.tempo} BPM'),
-                  _MiniChip(label: song.tag),
+                  if (song.song.songKey != null)
+                    _MiniChip(label: 'Key ${song.song.songKey}'),
+                  if (song.song.tempo != null)
+                    _MiniChip(label: '${song.song.tempo} BPM'),
+                  for (final tag in song.tags) _MiniChip(label: tag),
                 ],
               ),
             ],
@@ -779,6 +811,8 @@ class _MiniChip extends StatelessWidget {
 }
 
 class _PerformanceCallout extends StatelessWidget {
+  const _PerformanceCallout();
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;

@@ -1,122 +1,167 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:lyricpro_app/data/local/database.dart';
+import 'package:lyricpro_app/data/repositories/setlist_repository.dart';
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
-import 'package:lyricpro_app/features/shared/sample_data.dart';
 
-class SetlistScreen extends StatefulWidget {
-  const SetlistScreen({super.key, required this.setList});
+class SetlistScreen extends ConsumerStatefulWidget {
+  const SetlistScreen({super.key, required this.setListId});
 
   static const String routeName = 'setlist';
 
-  final SampleSetList setList;
+  final String setListId;
 
   @override
-  State<SetlistScreen> createState() => _SetlistScreenState();
+  ConsumerState<SetlistScreen> createState() => _SetlistScreenState();
 }
 
-class _SetlistScreenState extends State<SetlistScreen> {
-  late SampleSong _selectedSong;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedSong = widget.setList.songs.first;
-  }
-
-  void _onSongSelected(SampleSong song) {
-    setState(() {
-      _selectedSong = song;
-    });
-  }
+class _SetlistScreenState extends ConsumerState<SetlistScreen> {
+  String? _selectedEntryId;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final setList = widget.setList;
+    final detailAsync = ref.watch(setlistByIdProvider(widget.setListId));
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bool isWide = constraints.maxWidth > 1080;
+    return detailAsync.when(
+      data: (detail) {
+        if (detail == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Set list')),
+            body: const Center(child: Text('Set list not found')),
+          );
+        }
 
-        return Scaffold(
-          appBar: AppBar(
-            title: Text('Set list • ${setList.title}'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.share),
-                tooltip: 'Share',
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: () {},
-              ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(40),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Text(
-                  '${setList.songCount} songs • ${setList.eventDate} • ${setList.duration}',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ),
-            ),
-          ),
-          body: SafeArea(
-            child: Row(
-              children: [
-                if (isWide)
-                  SizedBox(
-                    width: 360,
-                    child: _SongOrderList(
-                      setList: setList,
-                      selectedSong: _selectedSong,
-                      onSongSelected: _onSongSelected,
-                    ),
+        final items = detail.items;
+        if (items.isNotEmpty) {
+          final ids = items.map((e) => e.entry.id).toSet();
+          if (_selectedEntryId == null || !ids.contains(_selectedEntryId)) {
+            _selectedEntryId = items.first.entry.id;
+          }
+        } else {
+          _selectedEntryId = null;
+        }
+
+        final selectedItem = items.firstWhereOrNull(
+          (item) => item.entry.id == _selectedEntryId,
+        );
+
+        final theme = Theme.of(context);
+
+        final customKey = selectedItem?.entry.customKey;
+        final customTempo = selectedItem?.entry.customTempo;
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final bool isWide = constraints.maxWidth > 1080;
+
+            return Scaffold(
+              appBar: AppBar(
+                title: Text('Set list • ${detail.setlist.title}'),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.share),
+                    tooltip: 'Share',
+                    onPressed: () {},
                   ),
-                Expanded(
+                  IconButton(
+                    icon: const Icon(Icons.more_vert),
+                    onPressed: () {},
+                  ),
+                ],
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(40),
                   child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: _SetListDetailPane(
-                      setList: setList,
-                      song: _selectedSong,
-                      isWide: isWide,
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      '${items.length} songs • Updated ${_timeAgo(detail.setlist.updatedAt)}',
+                      style: theme.textTheme.bodyMedium,
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          bottomNavigationBar: isWide
-              ? null
-              : _BottomActions(
-                  onAddSong: () {},
-                  onOpenPerformance: () {
-                    context.pushNamed(PerformanceScreen.routeName);
-                  },
-                  onOpenEditor: () {
-                    context.pushNamed(EditorScreen.routeName, extra: _selectedSong);
-                  },
+              ),
+              body: SafeArea(
+                child: Row(
+                  children: [
+                    if (isWide)
+                      SizedBox(
+                        width: 360,
+                        child: _SongOrderList(
+                          items: items,
+                          selectedEntryId: _selectedEntryId,
+                          onSelectionChanged: (value) {
+                            setState(() => _selectedEntryId = value);
+                          },
+                        ),
+                      ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: _SetListDetailPane(
+                          detail: detail,
+                          selectedItem: selectedItem,
+                          isWide: isWide,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              bottomNavigationBar: isWide
+                  ? null
+                  : _BottomActions(
+                      onAddSong: () {},
+                      onOpenPerformance: () {
+                        context.pushNamed(PerformanceScreen.routeName);
+                      },
+                      onOpenEditor: selectedItem?.song == null
+                          ? null
+                          : () {
+                              context.pushNamed(
+                                EditorScreen.routeName,
+                                extra: selectedItem!.song!.id,
+                              );
+                            },
+                      songCount: items.length,
+                    ),
+            );
+          },
         );
       },
+      error: (error, stack) => Scaffold(
+        appBar: AppBar(title: const Text('Set list')),
+        body: Center(child: Text('Failed to load set list: $error')),
+      ),
+      loading: () => const Scaffold(
+        appBar: AppBar(title: Text('Set list')),
+        body: Center(child: CircularProgressIndicator()),
+      ),
     );
+  }
+
+  String _timeAgo(DateTime time) {
+    final now = DateTime.now();
+    final diff = now.difference(time);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
   }
 }
 
 class _SongOrderList extends StatelessWidget {
   const _SongOrderList({
-    required this.setList,
-    required this.selectedSong,
-    required this.onSongSelected,
+    required this.items,
+    required this.selectedEntryId,
+    required this.onSelectionChanged,
   });
 
-  final SampleSetList setList;
-  final SampleSong selectedSong;
-  final ValueChanged<SampleSong> onSongSelected;
+  final List<SetlistItem> items;
+  final String? selectedEntryId;
+  final ValueChanged<String> onSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -137,26 +182,26 @@ class _SongOrderList extends StatelessWidget {
             const SizedBox(height: 16),
             Expanded(
               child: ListView.separated(
-                itemCount: setList.songs.length,
+                itemCount: items.length,
                 itemBuilder: (context, index) {
-                  final song = setList.songs[index];
-                  final bool isSelected = song.id == selectedSong.id;
-
+                  final item = items[index];
+                  final isSelected = item.entry.id == selectedEntryId;
                   return ListTile(
                     selected: isSelected,
-                    selectedTileColor:
-                        colorScheme.primary.withValues(alpha: 0.16),
+                    selectedTileColor: colorScheme.primary.withValues(alpha: 0.16),
                     leading: CircleAvatar(
-                      backgroundColor:
-                          colorScheme.primary.withValues(alpha: 0.12),
+                      backgroundColor: colorScheme.primary.withValues(alpha: 0.12),
                       child: Text('${index + 1}'),
                     ),
-                    title: Text(song.title),
-                    subtitle: Text('${song.key} • ${song.duration}'),
+                    title: Text(item.song?.title ?? 'Unknown song'),
+                    subtitle: Text(item.song?.artist ?? 'Unknown artist'),
                     trailing: const Icon(Icons.drag_handle),
-                    onTap: () => onSongSelected(song),
+                    onTap: () => onSelectionChanged(item.entry.id),
                     onLongPress: () {
-                      context.pushNamed(EditorScreen.routeName, extra: song);
+                      final songId = item.song?.id;
+                      if (songId != null) {
+                        context.pushNamed(EditorScreen.routeName, extra: songId);
+                      }
                     },
                   );
                 },
@@ -178,18 +223,21 @@ class _SongOrderList extends StatelessWidget {
 
 class _SetListDetailPane extends StatelessWidget {
   const _SetListDetailPane({
-    required this.setList,
-    required this.song,
+    required this.detail,
+    required this.selectedItem,
     required this.isWide,
   });
 
-  final SampleSetList setList;
-  final SampleSong song;
+  final SetlistDetail detail;
+  final SetlistItem? selectedItem;
   final bool isWide;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final song = selectedItem?.song;
+    final customKey = selectedItem?.entry.customKey;
+    final customTempo = selectedItem?.entry.customTempo;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -209,21 +257,22 @@ class _SetListDetailPane extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            song.title,
+                            song?.title ?? 'No song selected',
                             style: Theme.of(context).textTheme.headlineSmall,
                           ),
                           const SizedBox(height: 8),
-                          Text('${song.artist} • Key ${song.key}'),
+                          Text(song?.artist ?? 'Add a song to this slot'),
                         ],
                       ),
                     ),
-                    FilledButton.tonalIcon(
-                      onPressed: () {
-                        context.pushNamed(EditorScreen.routeName, extra: song);
-                      },
-                      icon: const Icon(Icons.edit_note),
-                      label: const Text('Open editor'),
-                    ),
+                    if (song != null)
+                      FilledButton.tonalIcon(
+                        onPressed: () {
+                          context.pushNamed(EditorScreen.routeName, extra: song.id);
+                        },
+                        icon: const Icon(Icons.edit_note),
+                        label: const Text('Open editor'),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -231,10 +280,20 @@ class _SetListDetailPane extends StatelessWidget {
                   spacing: 12,
                   runSpacing: 12,
                   children: [
-                    _InfoChip(icon: Icons.music_note_outlined, label: 'Key ${song.key}'),
-                    _InfoChip(icon: Icons.timer_outlined, label: song.duration),
-                    _InfoChip(icon: Icons.graphic_eq_outlined, label: '${song.tempo} BPM'),
-                    _InfoChip(icon: Icons.sell_outlined, label: song.tag),
+                    if (customKey != null)
+                      _InfoChip(
+                        icon: Icons.music_note_outlined,
+                        label: 'Key $customKey',
+                      ),
+                    if (customTempo != null)
+                      _InfoChip(
+                        icon: Icons.timer_outlined,
+                        label: '$customTempo BPM',
+                      ),
+                    _InfoChip(
+                      icon: Icons.sell_outlined,
+                      label: '${detail.items.length} total songs',
+                    ),
                   ],
                 ),
               ],
@@ -263,29 +322,13 @@ class _SetListDetailPane extends StatelessWidget {
                           child: Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
-                              color: colorScheme.surfaceContainerHighest
-                                  .withValues(alpha: 0.35),
+                              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
                             ),
                             padding: const EdgeInsets.all(24),
-                            child: const SingleChildScrollView(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _ChordLine(
-                                    chords: ['Bb', 'F', 'Gm', 'Eb'],
-                                    lyrics: 'Amazing grace how sweet the sound',
-                                  ),
-                                  _ChordLine(
-                                    chords: ['Bb', 'F', 'Bb'],
-                                    lyrics: 'That saved a wretch like me',
-                                  ),
-                                  SizedBox(height: 20),
-                                  _SectionHeader(label: 'Chorus'),
-                                  _ChordLine(
-                                    chords: ['Gm', 'Bb', 'F'],
-                                    lyrics: 'I once was lost but now I am found',
-                                  ),
-                                ],
+                            child: SingleChildScrollView(
+                              child: Text(
+                                song?.content ?? 'No lyrics yet',
+                                style: Theme.of(context).textTheme.titleMedium,
                               ),
                             ),
                           ),
@@ -314,9 +357,20 @@ class _SetListDetailPane extends StatelessWidget {
                                   style: Theme.of(context).textTheme.titleLarge,
                                 ),
                                 const SizedBox(height: 16),
-                                _OverrideField(label: 'Key', value: song.key),
-                                _OverrideField(label: 'Capo', value: '2'),
-                                _OverrideField(label: 'Tempo', value: '${song.tempo} BPM'),
+                                _OverrideField(
+                                  label: 'Key',
+                                  value: selectedItem?.entry.customKey ?? song?.songKey ?? '-',
+                                  onPressed: () {},
+                                ),
+                                _OverrideField(
+                                  label: 'Tempo',
+                                  value: (selectedItem?.entry.customTempo ??
+                                              song?.tempo) !=
+                                          null
+                                      ? '${selectedItem?.entry.customTempo ?? song?.tempo} BPM'
+                                      : '-',
+                                  onPressed: () {},
+                                ),
                                 const SizedBox(height: 16),
                                 Text(
                                   'Section notes',
@@ -330,8 +384,8 @@ class _SetListDetailPane extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(12),
                                       color: colorScheme.surfaceContainerHigh,
                                     ),
-                                    child: const Text(
-                                      'Hold the bridge at bar 4 • Tag chorus twice if crowd is responsive.',
+                                    child: Text(
+                                      selectedItem?.entry.notes ?? 'Add song-specific notes',
                                     ),
                                   ),
                                 ),
@@ -346,7 +400,7 @@ class _SetListDetailPane extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      _PerformanceStrip(setList: setList),
+                      const _PerformanceStrip(),
                     ],
                   ),
                 ),
@@ -373,105 +427,33 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-class _ChordLine extends StatelessWidget {
-  const _ChordLine({required this.chords, required this.lyrics});
-
-  final List<String> chords;
-  final String lyrics;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 12,
-            children: chords
-                .map(
-                  (chord) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 4,
-                      horizontal: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.2),
-                    ),
-                    child: Text(
-                      chord,
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelLarge
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            lyrics,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Icon(
-            Icons.flag_outlined,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _OverrideField extends StatelessWidget {
-  const _OverrideField({required this.label, required this.value});
+  const _OverrideField({
+    required this.label,
+    required this.value,
+    required this.onPressed,
+  });
 
   final String label;
   final String value;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: OutlinedButton(
-        onPressed: () {},
+        onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         ),
         child: Row(
           children: [
-            Text(label),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
             const Spacer(),
             Text(value),
             const SizedBox(width: 8),
@@ -484,9 +466,7 @@ class _OverrideField extends StatelessWidget {
 }
 
 class _PerformanceStrip extends StatelessWidget {
-  const _PerformanceStrip({required this.setList});
-
-  final SampleSetList setList;
+  const _PerformanceStrip();
 
   @override
   Widget build(BuildContext context) {
@@ -502,16 +482,12 @@ class _PerformanceStrip extends StatelessWidget {
           child: const Icon(Icons.play_arrow_rounded, color: Colors.white),
         ),
         title: const Text('Start performance mode'),
-        subtitle: Text('${setList.songCount} songs • ${setList.duration} runtime'),
+        subtitle: const Text('Sync with connected devices'),
         trailing: FilledButton(
-          onPressed: () {
-            context.pushNamed(PerformanceScreen.routeName);
-          },
+          onPressed: () {},
           child: const Text('Open'),
         ),
-        onTap: () {
-          context.pushNamed(PerformanceScreen.routeName);
-        },
+        onTap: () {},
       ),
     );
   }
@@ -522,11 +498,13 @@ class _BottomActions extends StatelessWidget {
     required this.onAddSong,
     required this.onOpenPerformance,
     required this.onOpenEditor,
+    required this.songCount,
   });
 
   final VoidCallback onAddSong;
   final VoidCallback onOpenPerformance;
-  final VoidCallback onOpenEditor;
+  final VoidCallback? onOpenEditor;
+  final int songCount;
 
   @override
   Widget build(BuildContext context) {
@@ -557,7 +535,7 @@ class _BottomActions extends StatelessWidget {
             label: const Text('Editor'),
           ),
           const Spacer(),
-          const Text('12 songs • 52 minutes'),
+          Text('$songCount songs'),
         ],
       ),
     );

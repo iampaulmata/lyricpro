@@ -1,74 +1,123 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:lyricpro_app/data/repositories/library_repository.dart';
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
-import 'package:lyricpro_app/features/shared/sample_data.dart';
 
-class LibraryScreen extends StatelessWidget {
+class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
 
   static const String routeName = 'library';
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bool isWide = constraints.maxWidth > 1000;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final songsAsync = ref.watch(librarySongsProvider);
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Library'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.tune),
-                tooltip: 'Filters',
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: () {},
-              ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(72),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search songs, artists, or tags…',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
+    return songsAsync.when(
+      data: (songs) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final bool isWide = constraints.maxWidth > 1000;
+            final summary = LibrarySummary.fromSongs(songs);
+
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text('Library'),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.tune),
+                    tooltip: 'Filters',
+                    onPressed: () {},
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.more_vert),
+                    onPressed: () {},
+                  ),
+                ],
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(72),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Search songs, artists, or tags…',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-          body: Row(
-            children: [
-              if (isWide)
-                SizedBox(
-                  width: 280,
-                  child: _LibraryFilters(),
-                ),
-              Expanded(
-                child: _LibraryGrid(isWide: isWide),
+              body: Row(
+                children: [
+                  if (isWide)
+                    SizedBox(
+                      width: 280,
+                      child: _LibraryFilters(summary: summary),
+                    ),
+                  Expanded(
+                    child: _LibraryGrid(
+                      isWide: isWide,
+                      songs: songs,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () {},
-            icon: const Icon(Icons.upload_file),
-            label: const Text('Import'),
+              floatingActionButton: FloatingActionButton.extended(
+                onPressed: () {},
+                icon: const Icon(Icons.upload_file),
+                label: const Text('Import'),
+              ),
+            );
+          },
+        );
+      },
+      error: (error, stack) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Library')),
+          body: Center(
+            child: Text('Failed to load songs: $error'),
           ),
         );
       },
+      loading: () => const Scaffold(
+        appBar: AppBar(title: Text('Library')),
+        body: Center(child: CircularProgressIndicator()),
+      ),
     );
   }
 }
 
+class LibrarySummary {
+  const LibrarySummary({
+    required this.totalSongs,
+    required this.offlineSongs,
+    required this.tags,
+  });
+
+  factory LibrarySummary.fromSongs(List<SongWithTags> songs) {
+    final total = songs.length;
+    final offline = songs.where((song) => song.song.isOfflineAvailable).length;
+    final tags = <String>{};
+    for (final song in songs) {
+      tags.addAll(song.tags);
+    }
+    return LibrarySummary(totalSongs: total, offlineSongs: offline, tags: tags);
+  }
+
+  final int totalSongs;
+  final int offlineSongs;
+  final Set<String> tags;
+}
+
 class _LibraryFilters extends StatelessWidget {
+  const _LibraryFilters({required this.summary});
+
+  final LibrarySummary summary;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -91,9 +140,8 @@ class _LibraryFilters extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 12),
-                  const _SummaryRow(label: 'Total songs', value: '134'),
-                  const _SummaryRow(label: 'Offline ready', value: '87'),
-                  const _SummaryRow(label: 'Shared with me', value: '24'),
+                  _SummaryRow(label: 'Total songs', value: summary.totalSongs.toString()),
+                  _SummaryRow(label: 'Offline ready', value: summary.offlineSongs.toString()),
                   const SizedBox(height: 16),
                   FilledButton.tonal(
                     onPressed: () {},
@@ -105,17 +153,6 @@ class _LibraryFilters extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Text(
-            'Favorites',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          const FilterChip(
-            label: Text('Favorites ★'),
-            selected: true,
-            onSelected: null,
-          ),
-          const SizedBox(height: 16),
-          Text(
             'Tags',
             style: Theme.of(context).textTheme.titleMedium,
           ),
@@ -124,7 +161,7 @@ class _LibraryFilters extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final tag in sampleTags.take(4))
+              for (final tag in summary.tags.take(12))
                 FilterChip(
                   label: Text(tag),
                   onSelected: (_) {},
@@ -214,9 +251,13 @@ class _SummaryRow extends StatelessWidget {
 }
 
 class _LibraryGrid extends StatelessWidget {
-  const _LibraryGrid({required this.isWide});
+  const _LibraryGrid({
+    required this.isWide,
+    required this.songs,
+  });
 
   final bool isWide;
+  final List<SongWithTags> songs;
 
   @override
   Widget build(BuildContext context) {
@@ -272,7 +313,7 @@ class _LibraryGrid extends StatelessWidget {
                 final crossAxisCount =
                     (constraints.maxWidth / (isWide ? 240 : 180)).floor().clamp(1, 4);
                 return GridView.builder(
-                  itemCount: sampleSongs.length,
+                  itemCount: songs.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
                     crossAxisSpacing: 16,
@@ -280,7 +321,7 @@ class _LibraryGrid extends StatelessWidget {
                     childAspectRatio: isWide ? 4 / 3 : 3 / 4,
                   ),
                   itemBuilder: (context, index) {
-                    final song = sampleSongs[index];
+                    final song = songs[index];
                     return _LibraryCard(song: song);
                   },
                 );
@@ -297,15 +338,15 @@ class _LibraryGrid extends StatelessWidget {
             ),
           ),
           child: Row(
-            children: [
+            children: const [
               OutlinedButton(
-                onPressed: () {},
-                child: const Text('Sync now'),
+                onPressed: null,
+                child: Text('Sync now'),
               ),
-              const SizedBox(width: 16),
-              const Text('Last sync • 5 minutes ago'),
-              const Spacer(),
-              const Text('0 selected'),
+              SizedBox(width: 16),
+              Text('Last sync • 5 minutes ago'),
+              Spacer(),
+              Text('0 selected'),
             ],
           ),
         ),
@@ -317,7 +358,7 @@ class _LibraryGrid extends StatelessWidget {
 class _LibraryCard extends StatelessWidget {
   const _LibraryCard({required this.song});
 
-  final SampleSong song;
+  final SongWithTags song;
 
   @override
   Widget build(BuildContext context) {
@@ -328,7 +369,10 @@ class _LibraryCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
-          context.pushNamed(EditorScreen.routeName, extra: song);
+          context.pushNamed(
+            EditorScreen.routeName,
+            extra: song.song.id,
+          );
         },
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -341,26 +385,30 @@ class _LibraryCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      song.title,
+                      song.song.title,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.star_border),
+                    icon: Icon(
+                      song.song.isFavorite ? Icons.star : Icons.star_border,
+                    ),
                     onPressed: () {},
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(song.artist),
+              Text(song.song.artist ?? 'Unknown artist'),
               const Spacer(),
               Wrap(
                 spacing: 8,
                 runSpacing: 4,
                 children: [
-                  _InfoChip(label: 'Key ${song.key}'),
-                  _InfoChip(label: '${song.tempo} BPM'),
-                  _InfoChip(label: song.tag),
+                  if (song.song.songKey != null)
+                    _InfoChip(label: 'Key ${song.song.songKey}'),
+                  if (song.song.tempo != null)
+                    _InfoChip(label: '${song.song.tempo} BPM'),
+                  for (final tag in song.tags) _InfoChip(label: tag),
                 ],
               ),
             ],

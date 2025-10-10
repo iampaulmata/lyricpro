@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lyricpro_app/features/dashboard/presentation/dashboard_screen.dart';
@@ -6,7 +7,6 @@ import 'package:lyricpro_app/features/library/presentation/library_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
 import 'package:lyricpro_app/features/setlists/presentation/setlist_screen.dart';
 import 'package:lyricpro_app/features/settings/presentation/settings_screen.dart';
-import 'package:lyricpro_app/features/shared/sample_data.dart';
 import 'package:lyricpro_app/features/splash/presentation/splash_screen.dart';
 import 'package:lyricpro_app/features/auth/presentation/login_screen.dart';
 
@@ -40,16 +40,30 @@ class AppRouter {
         path: '/setlist',
         name: SetlistScreen.routeName,
         builder: (context, state) {
-          final setList = state.extra as SampleSetList? ?? sampleSetLists.first;
-          return SetlistScreen(setList: setList);
+          final setlistId = state.extra is String
+              ? state.extra as String
+              : state.uri.queryParameters['id'];
+          if (setlistId == null) {
+            return const Scaffold(
+              body: Center(child: Text('Missing set list identifier')),
+            );
+          }
+          return SetlistScreen(setListId: setlistId);
         },
       ),
       GoRoute(
         path: '/editor',
         name: EditorScreen.routeName,
         builder: (context, state) {
-          final song = state.extra as SampleSong? ?? sampleSongs.first;
-          return EditorScreen(song: song);
+          final songId = state.extra is String
+              ? state.extra as String
+              : state.uri.queryParameters['id'];
+          if (songId == null) {
+            return const Scaffold(
+              body: Center(child: Text('Missing song identifier')),
+            );
+          }
+          return EditorScreen(songId: songId);
         },
       ),
       GoRoute(

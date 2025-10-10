@@ -1,15 +1,48 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:lyricpro_app/data/repositories/library_repository.dart';
+import 'package:lyricpro_app/data/local/database.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
-import 'package:lyricpro_app/features/shared/sample_data.dart';
 
-class EditorScreen extends StatelessWidget {
-  const EditorScreen({super.key, required this.song});
+class EditorScreen extends ConsumerWidget {
+  const EditorScreen({super.key, required this.songId});
 
   static const String routeName = 'editor';
 
-  final SampleSong song;
+  final String songId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final songAsync = ref.watch(songByIdProvider(songId));
+
+    return songAsync.when(
+      data: (song) {
+        if (song == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Editor')),
+            body: const Center(child: Text('Song not found')),
+          );
+        }
+        return _EditorView(song: song);
+      },
+      error: (error, stack) => Scaffold(
+        appBar: AppBar(title: const Text('Editor')),
+        body: Center(child: Text('Failed to load song: $error')),
+      ),
+      loading: () => const Scaffold(
+        appBar: AppBar(title: Text('Editor')),
+        body: Center(child: CircularProgressIndicator()),
+      ),
+    );
+  }
+}
+
+class _EditorView extends StatelessWidget {
+  const _EditorView({required this.song});
+
+  final SongWithTags song;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +52,7 @@ class EditorScreen extends StatelessWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('Editing • ${song.title}'),
+            title: Text('Editing • ${song.song.title}'),
             actions: [
               IconButton(
                 icon: const Icon(Icons.history),
@@ -51,7 +84,7 @@ class EditorScreen extends StatelessWidget {
                 ),
                 const VerticalDivider(width: 1),
                 Expanded(
-                  child: _EditorWorkspace(song: song, isWide: isWide),
+                  child: _EditorWorkspace(song: song.song, isWide: isWide),
                 ),
               ],
             ),
@@ -65,7 +98,7 @@ class EditorScreen extends StatelessWidget {
 class _MetadataSidebar extends StatelessWidget {
   const _MetadataSidebar({required this.song});
 
-  final SampleSong song;
+  final SongWithTags song;
 
   @override
   Widget build(BuildContext context) {
@@ -73,15 +106,14 @@ class _MetadataSidebar extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Material(
-      color:
-          theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
       child: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text(song.title, style: theme.textTheme.titleLarge),
-            subtitle: Text(song.artist),
+            title: Text(song.song.title, style: theme.textTheme.titleLarge),
+            subtitle: Text(song.song.artist ?? 'Unknown artist'),
             trailing: IconButton(
               icon: const Icon(Icons.edit),
               onPressed: () {},
@@ -91,12 +123,12 @@ class _MetadataSidebar extends StatelessWidget {
           const SizedBox(height: 12),
           _SidebarField(
             label: 'Tempo',
-            value: '${song.tempo} BPM',
+            value: song.song.tempo != null ? '${song.song.tempo} BPM' : 'Not set',
             icon: Icons.timer_outlined,
           ),
           _SidebarField(
             label: 'Key',
-            value: song.key,
+            value: song.song.songKey ?? 'Not set',
             icon: Icons.music_note_outlined,
           ),
           _SidebarField(
@@ -105,6 +137,28 @@ class _MetadataSidebar extends StatelessWidget {
             icon: Icons.piano_outlined,
           ),
           const Divider(height: 32),
+          Text(
+            'Tags',
+            style: theme.textTheme.labelLarge,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final tag in song.tags)
+                Chip(
+                  label: Text(tag),
+                  backgroundColor: colorScheme.primary.withValues(alpha: 0.12),
+                ),
+              if (song.tags.isEmpty)
+                Text(
+                  'No tags yet',
+                  style: theme.textTheme.bodySmall,
+                ),
+            ],
+          ),
+          const SizedBox(height: 24),
           Text(
             'Sections',
             style: theme.textTheme.labelLarge,
@@ -124,31 +178,13 @@ class _MetadataSidebar extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.add),
-            label: const Text('Add section'),
-          ),
-          const Divider(height: 32),
-          Text('Version history', style: theme.textTheme.labelLarge),
-          const SizedBox(height: 12),
-          ..._historyEntries.map(
-            (entry) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(
-                backgroundColor:
-                    colorScheme.primary.withValues(alpha: 0.12),
-                child: Text(entry.initials),
-              ),
-              title: Text(entry.title),
-              subtitle: Text(entry.subtitle),
-              trailing: Text(entry.timestamp),
-            ),
-          ),
-          const SizedBox(height: 32),
-          FilledButton.tonalIcon(
-            onPressed: () {},
-            icon: const Icon(Icons.restore),
-            label: const Text('View full history'),
+            onPressed: () {
+              context.pushNamed(
+                PerformanceScreen.routeName,
+              );
+            },
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: const Text('Teleprompter preview'),
           ),
         ],
       ),
@@ -159,7 +195,7 @@ class _MetadataSidebar extends StatelessWidget {
 class _EditorWorkspace extends StatelessWidget {
   const _EditorWorkspace({required this.song, required this.isWide});
 
-  final SampleSong song;
+  final Song song;
   final bool isWide;
 
   @override
@@ -255,40 +291,9 @@ class _EditorWorkspace extends StatelessWidget {
                                     .textTheme
                                     .bodyLarge!
                                     .copyWith(fontFamily: 'monospace'),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: const [
-                                    _EditorLine(
-                                      number: 1,
-                                      content: '{title: Higher Ground}',
-                                      isDirective: true,
-                                    ),
-                                    _EditorLine(
-                                      number: 2,
-                                      content: '{key: Bb}',
-                                      isDirective: true,
-                                    ),
-                                    _EditorLine(
-                                      number: 3,
-                                      content: '',
-                                    ),
-                                    _EditorLine(
-                                      number: 4,
-                                      content:
-                                          '[Bb]Amazing [F]grace how [Gm]sweet the [Eb]sound',
-                                    ),
-                                    _EditorLine(
-                                      number: 5,
-                                      content:
-                                          'That [Bb]saved a [F]wretch like [Bb]me',
-                                    ),
-                                    _EditorLine(
-                                      number: 6,
-                                      content: '{comment: Hold last bar}',
-                                      isDirective: true,
-                                    ),
-                                  ],
-                                ),
+                                child: Text(song.content.isEmpty
+                                    ? 'Start typing your lyrics here...'
+                                    : song.content),
                               ),
                             ),
                           ),
@@ -310,26 +315,11 @@ class _EditorWorkspace extends StatelessWidget {
                                   const SizedBox(height: 16),
                                   Expanded(
                                     child: SingleChildScrollView(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: const [
-                                          _ChordDisplayLine(
-                                            chords: ['Bb', 'F', 'Gm', 'Eb'],
-                                            lyrics:
-                                                'Amazing grace how sweet the sound',
-                                          ),
-                                          SizedBox(height: 16),
-                                          _ChordDisplayLine(
-                                            chords: ['Bb', 'F', 'Bb'],
-                                            lyrics: 'That saved a wretch like me',
-                                          ),
-                                          SizedBox(height: 24),
-                                          const _EditorSectionHeader(label: 'Chorus'),
-                                          _ChordDisplayLine(
-                                            chords: ['Gm', 'Bb', 'F'],
-                                            lyrics: 'I once was lost but now I am found',
-                                          ),
-                                        ],
+                                      child: Text(
+                                        song.content,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium,
                                       ),
                                     ),
                                   ),
@@ -345,12 +335,48 @@ class _EditorWorkspace extends StatelessWidget {
               if (!isWide)
                 SizedBox(
                   width: 280,
-                  child: _PreviewDrawer(song: song),
+                  child: _PreviewDrawer(content: song.content),
                 ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PreviewDrawer extends StatelessWidget {
+  const _PreviewDrawer({required this.content});
+
+  final String content;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Preview',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  content,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -420,189 +446,3 @@ class _SectionChip extends StatelessWidget {
     );
   }
 }
-
-class _EditorLine extends StatelessWidget {
-  const _EditorLine({
-    required this.number,
-    required this.content,
-    this.isDirective = false,
-  });
-
-  final int number;
-  final String content;
-  final bool isDirective;
-
-  @override
-  Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.bodyLarge!;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 36,
-            child: Text(
-              number.toString().padLeft(2, '0'),
-              style: style.copyWith(color: Theme.of(context).hintColor),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              content,
-              style: isDirective
-                  ? style.copyWith(color: Theme.of(context).colorScheme.secondary)
-                  : style,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EditorSectionHeader extends StatelessWidget {
-  const _EditorSectionHeader({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Icon(Icons.flag_outlined, color: color),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChordDisplayLine extends StatelessWidget {
-  const _ChordDisplayLine({required this.chords, required this.lyrics});
-
-  final List<String> chords;
-  final String lyrics;
-
-  @override
-  Widget build(BuildContext context) {
-    final chordStyle = Theme.of(context)
-        .textTheme
-        .labelLarge
-        ?.copyWith(color: Theme.of(context).colorScheme.primary);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 12,
-          children: chords
-              .map(
-                (chord) => Chip(
-                  label: Text(chord, style: chordStyle),
-                  backgroundColor: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withValues(alpha: 0.12),
-                ),
-              )
-              .toList(),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          lyrics,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      ],
-    );
-  }
-}
-
-class _PreviewDrawer extends StatelessWidget {
-  const _PreviewDrawer({required this.song});
-
-  final SampleSong song;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            color: Theme.of(context).colorScheme.surfaceContainerLow,
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Preview',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: const [
-                _ChordDisplayLine(
-                  chords: ['Bb', 'F', 'Gm', 'Eb'],
-                  lyrics: 'Amazing grace how sweet the sound',
-                ),
-                SizedBox(height: 16),
-                _ChordDisplayLine(
-                  chords: ['Bb', 'F', 'Bb'],
-                  lyrics: 'That saved a wretch like me',
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HistoryEntry {
-  const _HistoryEntry({
-    required this.initials,
-    required this.title,
-    required this.subtitle,
-    required this.timestamp,
-  });
-
-  final String initials;
-  final String title;
-  final String subtitle;
-  final String timestamp;
-}
-
-const List<_HistoryEntry> _historyEntries = [
-  _HistoryEntry(
-    initials: 'AR',
-    title: 'Lyric tweak',
-    subtitle: 'Updated Chorus line 2',
-    timestamp: '5m',
-  ),
-  _HistoryEntry(
-    initials: 'JC',
-    title: 'Key change',
-    subtitle: 'Moved from A to Bb',
-    timestamp: '1h',
-  ),
-  _HistoryEntry(
-    initials: 'MB',
-    title: 'Added bridge notes',
-    subtitle: 'Prep for extended vamp',
-    timestamp: 'Yesterday',
-  ),
-];
