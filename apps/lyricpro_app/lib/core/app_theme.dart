@@ -9,8 +9,6 @@ class AppTheme {
 
   ThemeData get lightTheme => FlexThemeData.light(
         colors: _scheme(Brightness.light),
-        surfaceMode: FlexSurfaceMode.highScaffoldLowSurface,
-        useMaterial3: true,
         subThemesData: const FlexSubThemesData(
           blendOnColors: false,
           navigationBarHeight: 64,
@@ -20,8 +18,6 @@ class AppTheme {
 
   ThemeData get darkTheme => FlexThemeData.dark(
         colors: _scheme(Brightness.dark),
-        surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
-        useMaterial3: true,
         subThemesData: const FlexSubThemesData(
           blendOnColors: false,
           navigationBarHeight: 64,

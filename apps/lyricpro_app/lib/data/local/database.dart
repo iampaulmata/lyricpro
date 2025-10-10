@@ -5,7 +5,7 @@ import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import 'tables.dart';
+import 'package:lyricpro_app/data/local/tables.dart';
 
 part 'database.g.dart';
 
@@ -26,8 +26,8 @@ class AppDatabase extends _$AppDatabase {
   int get schemaVersion => 1;
 
   Future<void> seedDemoContent() async {
-    final existingCount = await (select(songs).get()).then((rows) => rows.length);
-    if (existingCount > 0) return;
+    final existingSongs = await select(songs).get();
+    if (existingSongs.isNotEmpty) return;
 
     await transaction(() async {
       await into(songs).insert(

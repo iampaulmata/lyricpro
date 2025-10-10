@@ -83,7 +83,7 @@ class LibraryScreen extends ConsumerWidget {
           ),
         );
       },
-      loading: () => const Scaffold(
+      loading: () => Scaffold(
         appBar: AppBar(title: Text('Library')),
         body: Center(child: CircularProgressIndicator()),
       ),
@@ -183,7 +183,7 @@ class _LibraryFilters extends StatelessWidget {
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
             ),
-            value: 'All keys',
+            initialValue: 'All keys',
             items: const [
               DropdownMenuItem(value: 'All keys', child: Text('All keys')),
               DropdownMenuItem(value: 'Bb', child: Text('Bb')),

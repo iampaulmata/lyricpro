@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lyricpro_app/data/local/database.dart';
-import 'package:lyricpro_app/data/local/tables.dart';
+
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final database = AppDatabase();
   ref.onDispose(database.close);
@@ -62,7 +62,7 @@ class LibraryRepository {
         final song = group.first.song;
         final tags = group
             .map((row) => row.tag?.name)
-            .whereNotNull()
+            .nonNulls
             .toList(growable: false);
         return SongWithTags(song: song, tags: tags);
       }).toList(growable: false);

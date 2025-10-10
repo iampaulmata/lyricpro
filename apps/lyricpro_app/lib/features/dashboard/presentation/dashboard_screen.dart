@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lyricpro_app/data/repositories/library_repository.dart';
 import 'package:lyricpro_app/data/repositories/setlist_repository.dart';
+import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
 import 'package:lyricpro_app/features/library/presentation/library_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
 import 'package:lyricpro_app/features/setlists/presentation/setlist_screen.dart';
@@ -99,7 +100,7 @@ class DashboardScreen extends ConsumerWidget {
             appBar: AppBar(title: const Text('Dashboard')),
             body: Center(child: Text('Failed to load set lists: $error')),
           ),
-          loading: () => const Scaffold(
+          loading: () => Scaffold(
             appBar: AppBar(title: Text('Dashboard')),
             body: Center(child: CircularProgressIndicator()),
           ),
@@ -109,7 +110,7 @@ class DashboardScreen extends ConsumerWidget {
         appBar: AppBar(title: const Text('Dashboard')),
         body: Center(child: Text('Failed to load songs: $error')),
       ),
-      loading: () => const Scaffold(
+      loading: () => Scaffold(
         appBar: AppBar(title: Text('Dashboard')),
         body: Center(child: CircularProgressIndicator()),
       ),
@@ -428,6 +429,8 @@ class _DashboardContent extends StatelessWidget {
   }
 }
 
+enum SyncStatus { synced, pending, offline }
+
 class _SearchField extends StatelessWidget {
   const _SearchField({required this.hint});
 
@@ -461,10 +464,76 @@ class _ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-*** End Patch
+    final statusColor = switch (syncStatus) {
+      SyncStatus.synced => colorScheme.secondary,
+      SyncStatus.pending => colorScheme.primary,
+      SyncStatus.offline => colorScheme.error,
+    };
+    final statusLabel = switch (syncStatus) {
+      SyncStatus.synced => 'Synced',
+      SyncStatus.pending => 'Pending changes',
+      SyncStatus.offline => 'Offline mode',
+    };
 
-
-enum SyncStatus { synced, pending, offline }
+    return Card(
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: colorScheme.primary.withValues(alpha: 0.15),
+                  radius: 28,
+                  child: Text(
+                    name.isNotEmpty ? name.characters.first : '?',
+                    style: TextStyle(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(role),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(statusLabel),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _SidebarSectionTitle extends StatelessWidget {
   const _SidebarSectionTitle(this.text);

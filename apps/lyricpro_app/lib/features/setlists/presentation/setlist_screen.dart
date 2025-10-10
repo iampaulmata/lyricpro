@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:lyricpro_app/data/local/database.dart';
 import 'package:lyricpro_app/data/repositories/setlist_repository.dart';
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
@@ -48,11 +47,9 @@ class _SetlistScreenState extends ConsumerState<SetlistScreen> {
         final selectedItem = items.firstWhereOrNull(
           (item) => item.entry.id == _selectedEntryId,
         );
+        final selectedSongId = selectedItem?.song?.id;
 
         final theme = Theme.of(context);
-
-        final customKey = selectedItem?.entry.customKey;
-        final customTempo = selectedItem?.entry.customTempo;
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -117,12 +114,12 @@ class _SetlistScreenState extends ConsumerState<SetlistScreen> {
                       onOpenPerformance: () {
                         context.pushNamed(PerformanceScreen.routeName);
                       },
-                      onOpenEditor: selectedItem?.song == null
+                      onOpenEditor: selectedSongId == null
                           ? null
                           : () {
                               context.pushNamed(
                                 EditorScreen.routeName,
-                                extra: selectedItem!.song!.id,
+                                extra: selectedSongId,
                               );
                             },
                       songCount: items.length,
@@ -135,7 +132,7 @@ class _SetlistScreenState extends ConsumerState<SetlistScreen> {
         appBar: AppBar(title: const Text('Set list')),
         body: Center(child: Text('Failed to load set list: $error')),
       ),
-      loading: () => const Scaffold(
+      loading: () => Scaffold(
         appBar: AppBar(title: Text('Set list')),
         body: Center(child: CircularProgressIndicator()),
       ),

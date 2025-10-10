@@ -15,6 +15,8 @@ class ThemeController extends StateNotifier<AppThemeState> {
           ),
         );
 
+  ThemeMode get themeMode => state.mode;
+
   set themeMode(ThemeMode mode) {
     var accent = state.accent;
     if (!accent.allowsMode(mode)) {
@@ -27,17 +29,12 @@ class ThemeController extends StateNotifier<AppThemeState> {
   }
 
   void toggleDarkLight() {
-    switch (state.mode) {
-      case ThemeMode.light:
-        themeMode = ThemeMode.dark;
-        break;
-      case ThemeMode.dark:
-        themeMode = ThemeMode.light;
-        break;
-      case ThemeMode.system:
-        themeMode = ThemeMode.dark;
-        break;
-    }
+    final nextMode = switch (state.mode) {
+      ThemeMode.light => ThemeMode.dark,
+      ThemeMode.dark => ThemeMode.light,
+      ThemeMode.system => ThemeMode.dark,
+    };
+    themeMode = nextMode;
   }
 
   void setAccent(AppAccent accent) {

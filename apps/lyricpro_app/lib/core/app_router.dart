@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:lyricpro_app/features/auth/presentation/login_screen.dart';
 import 'package:lyricpro_app/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
 import 'package:lyricpro_app/features/library/presentation/library_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
-import 'package:lyricpro_app/features/setlists/presentation/setlist_screen.dart';
 import 'package:lyricpro_app/features/settings/presentation/settings_screen.dart';
+import 'package:lyricpro_app/features/setlists/presentation/setlist_screen.dart';
 import 'package:lyricpro_app/features/splash/presentation/splash_screen.dart';
-import 'package:lyricpro_app/features/auth/presentation/login_screen.dart';
 
 class AppRouter {
   AppRouter();
@@ -40,9 +40,7 @@ class AppRouter {
         path: '/setlist',
         name: SetlistScreen.routeName,
         builder: (context, state) {
-          final setlistId = state.extra is String
-              ? state.extra as String
-              : state.uri.queryParameters['id'];
+          final setlistId = state.extra as String? ?? state.uri.queryParameters['id'];
           if (setlistId == null) {
             return const Scaffold(
               body: Center(child: Text('Missing set list identifier')),
@@ -55,9 +53,7 @@ class AppRouter {
         path: '/editor',
         name: EditorScreen.routeName,
         builder: (context, state) {
-          final songId = state.extra is String
-              ? state.extra as String
-              : state.uri.queryParameters['id'];
+          final songId = state.extra as String? ?? state.uri.queryParameters['id'];
           if (songId == null) {
             return const Scaffold(
               body: Center(child: Text('Missing song identifier')),

@@ -40,9 +40,9 @@ class SongTags extends Table {
   String get tableName => 'song_tags';
 
   TextColumn get songId =>
-      text().references(Songs, #id, onDelete: ReferenceAction.cascade)();
+      text().references(Songs, #id, onDelete: KeyAction.cascade)();
   TextColumn get tagId =>
-      text().references(Tags, #id, onDelete: ReferenceAction.cascade)();
+      text().references(Tags, #id, onDelete: KeyAction.cascade)();
 
   @override
   Set<Column> get primaryKey => {songId, tagId};
@@ -72,9 +72,9 @@ class SetlistEntries extends Table {
 
   TextColumn get id => text()();
   TextColumn get setlistId =>
-      text().references(Setlists, #id, onDelete: ReferenceAction.cascade)();
+      text().references(Setlists, #id, onDelete: KeyAction.cascade)();
   TextColumn get songId =>
-      text().references(Songs, #id, onDelete: ReferenceAction.cascade)();
+      text().references(Songs, #id, onDelete: KeyAction.cascade)();
   IntColumn get position => integer()();
   TextColumn get customKey => text().nullable()();
   IntColumn get customTempo => integer().nullable()();

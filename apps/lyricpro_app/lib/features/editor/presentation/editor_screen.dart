@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:lyricpro_app/data/repositories/library_repository.dart';
 import 'package:lyricpro_app/data/local/database.dart';
+import 'package:lyricpro_app/data/repositories/library_repository.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
 
 class EditorScreen extends ConsumerWidget {
@@ -31,7 +31,7 @@ class EditorScreen extends ConsumerWidget {
         appBar: AppBar(title: const Text('Editor')),
         body: Center(child: Text('Failed to load song: $error')),
       ),
-      loading: () => const Scaffold(
+      loading: () => Scaffold(
         appBar: AppBar(title: Text('Editor')),
         body: Center(child: CircularProgressIndicator()),
       ),
