@@ -182,8 +182,29 @@ class _ThemeSettings extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ThemeMode mode = ref.watch(themeControllerProvider);
+    final AppThemeState state = ref.watch(themeControllerProvider);
+    final ThemeMode mode = state.mode;
     final themeController = ref.read(themeControllerProvider.notifier);
+    final brightness = Theme.of(context).brightness;
+
+    final List<AppAccent> allowedAccents = AppAccent.values
+        .where((accent) => accent.allowsBrightness(brightness))
+        .toList();
+
+    final List<AppAccent> displayAccents =
+        allowedAccents.isEmpty ? AppAccent.values.toList() : allowedAccents;
+
+    final AppAccent activeAccent;
+    if (allowedAccents.isEmpty) {
+      activeAccent = state.accent;
+    } else if (allowedAccents.contains(state.accent)) {
+      activeAccent = state.accent;
+    } else {
+      activeAccent = allowedAccents.first;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        themeController.setAccent(activeAccent);
+      });
+    }
 
     return ListView(
       children: [
@@ -204,24 +225,14 @@ class _ThemeSettings extends ConsumerWidget {
         _SettingsCard(
           title: 'Accent color',
           child: Wrap(
-            spacing: 12,
-            runSpacing: 12,
+            spacing: 20,
+            runSpacing: 20,
             children: [
-              for (final color in _accentPalette)
-                GestureDetector(
-                  onTap: () {},
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white,
-                        width: color == _accentPalette.first ? 3 : 1,
-                      ),
-                    ),
-                  ),
+              for (final accent in displayAccents)
+                _AccentOption(
+                  accent: accent,
+                  isSelected: accent == activeAccent,
+                  onTap: () => themeController.setAccent(accent),
                 ),
             ],
           ),
@@ -543,6 +554,76 @@ class _SettingsCard extends StatelessWidget {
   }
 }
 
+
+class _AccentOption extends StatelessWidget {
+  const _AccentOption({
+    required this.accent,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final AppAccent accent;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color borderColor = isSelected
+        ? Theme.of(context).colorScheme.onSurface
+        : Theme.of(context)
+            .colorScheme
+            .onSurface
+            .withValues(alpha: 0.2);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: accent.gradient,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: borderColor,
+                width: isSelected ? 3 : 1,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: accent.primaryColor.withValues(alpha: 0.25),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: isSelected
+                ? const Icon(Icons.check, color: Colors.white)
+                : null,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          accent.label,
+          style: Theme.of(context)
+              .textTheme
+              .labelSmall
+              ?.copyWith(fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal),
+        ),
+      ],
+    );
+  }
+}
+
 class _PresetChip extends StatelessWidget {
   const _PresetChip({
     required this.label,
@@ -595,12 +676,3 @@ class _PedalBindingCard extends StatelessWidget {
     );
   }
 }
-
-const List<Color> _accentPalette = [
-  Color(0xFFFF8A3D),
-  Color(0xFF1EB980),
-  Color(0xFF136F63),
-  Color(0xFF8E30FF),
-  Color(0xFF14B8A6),
-  Color(0xFF3B82F6),
-];

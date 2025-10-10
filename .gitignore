@@ -28,6 +28,7 @@ apps/lyricpro_app/windows/
 apps/lyricpro_app/.metadata
 apps/lyricpro_app/lyricpro_app.iml
 apps/lyricpro_app/test/widget_test.dart
+apps/lyricpro_app/devtools_options.yaml
 apps/flutter.tar.xz
 apps/android-studio.tar.gz
 apps/cmdline-tools/

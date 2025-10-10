@@ -24,7 +24,17 @@ class DashboardScreen extends ConsumerWidget {
           appBar: isLarge
               ? null
               : AppBar(
-                  title: const Text('LyricPro'),
+                  title: Row(
+                    children: [
+                      Image.asset(
+                        'assets/icons/LyricPro_icon.png',
+                        height: 28,
+                        semanticLabel: 'LyricPro logo',
+                      ),
+                      const SizedBox(width: 12),
+                      const Text('LyricPro'),
+                    ],
+                  ),
                   actions: [
                     IconButton(
                       icon: const Icon(Icons.dashboard_customize_outlined),
@@ -80,6 +90,24 @@ class _Sidebar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(
+              children: [
+                Image.asset(
+                  'assets/icons/LyricPro_icon.png',
+                  height: 36,
+                  semanticLabel: 'LyricPro logo',
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'LyricPro',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
             _ProfileCard(
               name: 'Alex Rivera',
               role: 'Lead Vocal • Master device',
@@ -148,6 +176,26 @@ class _DashboardDrawer extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+              child: Row(
+                children: [
+                  Image.asset(
+                    'assets/icons/LyricPro_icon.png',
+                    height: 32,
+                    semanticLabel: 'LyricPro logo',
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'LyricPro',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
             _ProfileCard(
               name: 'Alex Rivera',
               role: 'Lead Vocal • Master device',

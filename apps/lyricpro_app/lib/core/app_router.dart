@@ -1,4 +1,3 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lyricpro_app/features/dashboard/presentation/dashboard_screen.dart';
@@ -12,9 +11,7 @@ import 'package:lyricpro_app/features/splash/presentation/splash_screen.dart';
 import 'package:lyricpro_app/features/auth/presentation/login_screen.dart';
 
 class AppRouter {
-  AppRouter({required this.ref});
-
-  final Ref ref;
+  AppRouter();
 
   late final GoRouter config = GoRouter(
     initialLocation: '/splash',

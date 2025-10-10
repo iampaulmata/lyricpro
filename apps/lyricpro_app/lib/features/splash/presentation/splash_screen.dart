@@ -53,17 +53,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.graphic_eq,
-                  size: 80,
-                  color: theme.colorScheme.primary,
-                ),
+              Image.asset(
+                'assets/icons/LyricPro_icon.png',
+                height: 120,
+                semanticLabel: 'LyricPro logo',
               ),
               const SizedBox(height: 24),
               Text(

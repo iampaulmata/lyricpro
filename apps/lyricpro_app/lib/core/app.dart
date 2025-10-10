@@ -6,11 +6,7 @@ import 'package:lyricpro_app/core/app_theme.dart';
 import 'package:lyricpro_app/core/theme_controller.dart';
 
 final _routerProvider = Provider<AppRouter>((ref) {
-  return AppRouter(ref: ref);
-});
-
-final _themeProvider = Provider<AppTheme>((ref) {
-  return AppTheme(ref: ref);
+  return AppRouter();
 });
 
 class LyricProApp extends ConsumerWidget {
@@ -18,15 +14,15 @@ class LyricProApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = ref.watch(_themeProvider);
     final router = ref.watch(_routerProvider);
-    final themeMode = ref.watch(themeControllerProvider);
+    final themeState = ref.watch(themeControllerProvider);
+    final appTheme = AppTheme(accent: themeState.accent);
 
     return MaterialApp.router(
       title: 'LyricPro',
-      theme: theme.lightTheme,
-      darkTheme: theme.darkTheme,
-      themeMode: themeMode,
+      theme: appTheme.lightTheme,
+      darkTheme: appTheme.darkTheme,
+      themeMode: themeState.mode,
       routerConfig: router.config,
       debugShowCheckedModeBanner: false,
     );
