@@ -17,3 +17,9 @@ linux/
 macos/
 windows/
 test_outputs/
+
+# Node modules (if npm used locally for CLI)
+node_modules/
+
+# Local environment file
+.env
