@@ -60,11 +60,6 @@ class _SetlistScreenState extends ConsumerState<SetlistScreen> {
                 title: Text('Set list • ${detail.setlist.title}'),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.share),
-                    tooltip: 'Share',
-                    onPressed: () {},
-                  ),
-                  IconButton(
                     icon: const Icon(Icons.more_vert),
                     onPressed: () {},
                   ),

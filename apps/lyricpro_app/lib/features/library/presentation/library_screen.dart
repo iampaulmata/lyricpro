@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:lyricpro_app/core/config/app_env.dart';
 import 'package:lyricpro_app/data/repositories/library_repository.dart';
-import 'package:lyricpro_app/data/services/sync_service.dart';
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
 
 class LibraryScreen extends ConsumerWidget {
@@ -15,16 +13,6 @@ class LibraryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final songsAsync = ref.watch(librarySongsProvider);
-    final supabaseEnabled = AppEnv.hasSupabaseCredentials;
-    final pendingSyncAsync = supabaseEnabled
-        ? ref.watch(pendingSyncCountProvider)
-        : const AsyncValue.data(0);
-    final syncState = supabaseEnabled
-        ? ref.watch(syncControllerProvider)
-        : const SyncState.initial();
-    final SyncController? syncController = supabaseEnabled
-        ? ref.read(syncControllerProvider.notifier)
-        : null;
 
     return songsAsync.when(
       data: (songs) {
@@ -32,11 +20,6 @@ class LibraryScreen extends ConsumerWidget {
           builder: (context, constraints) {
             final bool isWide = constraints.maxWidth > 1000;
             final summary = LibrarySummary.fromSongs(songs);
-            final pendingCount = pendingSyncAsync.maybeWhen(
-              data: (value) => value,
-              orElse: () => 0,
-            );
-
             return Scaffold(
               appBar: AppBar(
                 title: const Text('Library'),
@@ -75,16 +58,13 @@ class LibraryScreen extends ConsumerWidget {
                       child: _LibraryFilters(summary: summary),
                     ),
                   Expanded(
-                  child: _LibraryGrid(
-                    isWide: isWide,
-                    songs: songs,
-                    pendingCount: pendingCount,
-                    syncState: syncState,
-                    syncController: syncController,
+                    child: _LibraryGrid(
+                      isWide: isWide,
+                      songs: songs,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
               floatingActionButton: FloatingActionButton.extended(
                 onPressed: () {},
                 icon: const Icon(Icons.upload_file),
@@ -273,16 +253,10 @@ class _LibraryGrid extends StatelessWidget {
   const _LibraryGrid({
     required this.isWide,
     required this.songs,
-    required this.pendingCount,
-    required this.syncState,
-    required this.syncController,
   });
 
   final bool isWide;
   final List<SongWithTags> songs;
-  final int pendingCount;
-  final SyncState syncState;
-  final SyncController? syncController;
 
   @override
   Widget build(BuildContext context) {
@@ -354,50 +328,8 @@ class _LibraryGrid extends StatelessWidget {
             ),
           ),
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHigh,
-            border: Border(
-              top: BorderSide(color: Theme.of(context).dividerColor),
-            ),
-          ),
-          child: Row(
-            children: [
-              OutlinedButton.icon(
-                onPressed: syncController != null && !syncState.isSyncing
-                    ? () => syncController?.processQueue()
-                    : null,
-                icon: const Icon(Icons.sync),
-                label: Text(syncState.isSyncing ? 'Syncing…' : 'Sync now'),
-              ),
-              const SizedBox(width: 16),
-              Text(
-                syncState.lastSync != null
-                    ? 'Last sync • ${_timeAgo(syncState.lastSync!)}'
-                    : 'Never synced',
-              ),
-              const Spacer(),
-              Text(
-                syncController == null
-                    ? 'Cloud sync unavailable'
-                    : pendingCount > 0
-                        ? '$pendingCount pending'
-                        : 'All changes synced',
-              ),
-            ],
-          ),
-        ),
       ],
     );
-  }
-
-  String _timeAgo(DateTime time) {
-    final diff = DateTime.now().difference(time);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
-    if (diff.inHours < 24) return '${diff.inHours} hr ago';
-    return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
   }
 }
 

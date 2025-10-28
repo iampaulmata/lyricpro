@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lyricpro_app/features/auth/presentation/login_screen.dart';
 import 'package:lyricpro_app/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
 import 'package:lyricpro_app/features/library/presentation/library_screen.dart';
@@ -30,11 +29,6 @@ class AppRouter {
         path: '/library',
         name: LibraryScreen.routeName,
         builder: (context, state) => const LibraryScreen(),
-      ),
-      GoRoute(
-        path: '/login',
-        name: LoginScreen.routeName,
-        builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: '/setlist',

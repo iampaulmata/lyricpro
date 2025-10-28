@@ -59,10 +59,6 @@ class _EditorView extends StatelessWidget {
                 tooltip: 'Version history',
                 onPressed: () {},
               ),
-              IconButton(
-                icon: const Icon(Icons.share),
-                onPressed: () {},
-              ),
             ],
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(40),

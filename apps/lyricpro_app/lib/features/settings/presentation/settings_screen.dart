@@ -128,32 +128,25 @@ class _GeneralSettings extends ConsumerWidget {
     return ListView(
       children: [
         _SettingsCard(
-          title: 'Account',
+          title: 'Library storage',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const CircleAvatar(child: Text('AR')),
-                title: const Text('Alex Rivera'),
-                subtitle: const Text('alex.rivera@example.com'),
-                trailing: TextButton(
-                  onPressed: () {},
-                  child: const Text('Manage account'),
+                leading: const Icon(Icons.storage_outlined),
+                title: const Text('Stored on this device'),
+                subtitle: const Text(
+                  'LyricPro keeps your songs and set lists locally. Your data stays private to this device.',
                 ),
               ),
-              const Divider(),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: true,
-                onChanged: (_) {},
-                title: const Text('Remember my last login'),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: false,
-                onChanged: (_) {},
-                title: const Text('Offline mode (view only)'),
+              const SizedBox(height: 12),
+              Text(
+                'Export your library regularly if you want a manual backup or to copy data to another device.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Theme.of(context).hintColor),
               ),
             ],
           ),
