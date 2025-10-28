@@ -30,4 +30,4 @@ flutter test
 
 1. Flesh out domain models and providers for library/set list features.
 2. Add localization scaffolding and accessibility presets.
-3. Integrate sync services once backend endpoints are ready.
+3. Document manual backup/export flows for early adopters.

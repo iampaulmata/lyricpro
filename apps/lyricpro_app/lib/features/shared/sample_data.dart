@@ -164,14 +164,14 @@ const List<SampleActivity> sampleActivity = [
   ),
   SampleActivity(
     initials: 'JC',
-    title: 'Jamie shared “Firelight”',
-    subtitle: 'Added to shared collection',
+    title: 'Jamie refined “Firelight”',
+    subtitle: 'Updated arrangement notes',
     timestamp: '42m ago',
   ),
   SampleActivity(
     initials: 'MB',
-    title: 'Morgan synced Sunday Morning Acoustic',
-    subtitle: '2 devices pending update',
+    title: 'Morgan rehearsed Sunday Morning Acoustic',
+    subtitle: 'Marked transitions as smooth',
     timestamp: '1h ago',
   ),
 ];

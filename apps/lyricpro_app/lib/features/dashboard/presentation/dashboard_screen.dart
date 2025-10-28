@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:lyricpro_app/core/config/app_env.dart';
 import 'package:lyricpro_app/data/repositories/library_repository.dart';
 import 'package:lyricpro_app/data/repositories/setlist_repository.dart';
-import 'package:lyricpro_app/data/services/sync_service.dart';
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
 import 'package:lyricpro_app/features/library/presentation/library_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
@@ -22,16 +20,6 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final songsAsync = ref.watch(librarySongsProvider);
     final setlistsAsync = ref.watch(setlistsProvider);
-    final supabaseEnabled = AppEnv.hasSupabaseCredentials;
-    final pendingSyncAsync = supabaseEnabled
-        ? ref.watch(pendingSyncCountProvider)
-        : const AsyncValue.data(0);
-    final syncState = supabaseEnabled
-        ? ref.watch(syncControllerProvider)
-        : const SyncState.initial();
-    final SyncController? syncController = supabaseEnabled
-        ? ref.read(syncControllerProvider.notifier)
-        : null;
 
     return songsAsync.when(
       data: (songs) {
@@ -44,24 +32,7 @@ class DashboardScreen extends ConsumerWidget {
             return LayoutBuilder(
               builder: (context, constraints) {
                 final bool isLarge = constraints.maxWidth >= 1200;
-                final pendingCount = pendingSyncAsync.maybeWhen(
-                  data: (value) => value,
-                  orElse: () => 0,
-                );
-                final SyncStatus syncStatus;
-                if (!supabaseEnabled) {
-                  syncStatus = SyncStatus.offline;
-                } else if (syncState.lastError != null) {
-                  syncStatus = SyncStatus.offline;
-                } else if (syncState.isSyncing || pendingCount > 0) {
-                  syncStatus = SyncStatus.pending;
-                } else {
-                  syncStatus = SyncStatus.synced;
-                }
-
-                if (supabaseEnabled && pendingCount > 0 && !syncState.isSyncing) {
-                  syncController?.processQueue();
-                }
+                const libraryMode = LibraryMode.localOnly;
 
                 return Scaffold(
                   appBar: isLarge
@@ -105,7 +76,7 @@ class DashboardScreen extends ConsumerWidget {
                       ? null
                       : _DashboardDrawer(
                           tags: tagSet.toList(),
-                          syncStatus: syncStatus,
+                          libraryMode: libraryMode,
                         ),
                   body: SafeArea(
                     child: Row(
@@ -113,7 +84,7 @@ class DashboardScreen extends ConsumerWidget {
                         if (isLarge)
                           _Sidebar(
                             tags: tagSet.toList(),
-                            syncStatus: syncStatus,
+                            libraryMode: libraryMode,
                           ),
                         Expanded(
                           child: Padding(
@@ -155,10 +126,10 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({required this.tags, required this.syncStatus});
+  const _Sidebar({required this.tags, required this.libraryMode});
 
   final List<String> tags;
-  final SyncStatus syncStatus;
+  final LibraryMode libraryMode;
 
   @override
   Widget build(BuildContext context) {
@@ -190,7 +161,7 @@ class _Sidebar extends StatelessWidget {
             _ProfileCard(
               name: 'Alex Rivera',
               role: 'Lead Vocal • Master device',
-              syncStatus: syncStatus,
+              libraryMode: libraryMode,
             ),
             const SizedBox(height: 24),
             const _SidebarSectionTitle('Navigation'),
@@ -205,14 +176,6 @@ class _Sidebar extends StatelessWidget {
               icon: Icons.set_meal_outlined,
               label: 'Set Lists',
               isActive: true,
-            ),
-            const _SidebarNavItem(
-              icon: Icons.people_alt_outlined,
-              label: 'Shared with me',
-            ),
-            const _SidebarNavItem(
-              icon: Icons.offline_pin_outlined,
-              label: 'Offline queue',
             ),
             const _SidebarNavItem(
               icon: Icons.pedal_bike_outlined,
@@ -246,10 +209,10 @@ class _Sidebar extends StatelessWidget {
 }
 
 class _DashboardDrawer extends StatelessWidget {
-  const _DashboardDrawer({required this.tags, required this.syncStatus});
+  const _DashboardDrawer({required this.tags, required this.libraryMode});
 
   final List<String> tags;
-  final SyncStatus syncStatus;
+  final LibraryMode libraryMode;
 
   @override
   Widget build(BuildContext context) {
@@ -281,7 +244,7 @@ class _DashboardDrawer extends StatelessWidget {
             _ProfileCard(
               name: 'Alex Rivera',
               role: 'Lead Vocal • Master device',
-              syncStatus: syncStatus,
+              libraryMode: libraryMode,
             ),
             const Divider(),
             _SidebarNavItem(
@@ -296,14 +259,6 @@ class _DashboardDrawer extends StatelessWidget {
               icon: Icons.set_meal_outlined,
               label: 'Set Lists',
               isActive: true,
-            ),
-            const _SidebarNavItem(
-              icon: Icons.people_alt_outlined,
-              label: 'Shared with me',
-            ),
-            const _SidebarNavItem(
-              icon: Icons.offline_pin_outlined,
-              label: 'Offline queue',
             ),
             const _SidebarNavItem(
               icon: Icons.pedal_bike_outlined,
@@ -422,8 +377,14 @@ class _DashboardContent extends StatelessWidget {
                       SegmentedButton<String>(
                         segments: const [
                           ButtonSegment(label: Text('All songs'), value: 'all'),
-                          ButtonSegment(label: Text('Favorites'), value: 'favorites'),
-                          ButtonSegment(label: Text('Shared'), value: 'shared'),
+                          ButtonSegment(
+                            label: Text('Favorites'),
+                            value: 'favorites',
+                          ),
+                          ButtonSegment(
+                            label: Text('Offline ready'),
+                            value: 'offline',
+                          ),
                         ],
                         selected: const {'all'},
                         onSelectionChanged: (_) {},
@@ -467,7 +428,7 @@ class _DashboardContent extends StatelessWidget {
   }
 }
 
-enum SyncStatus { synced, pending, offline }
+enum LibraryMode { localOnly }
 
 class _SearchField extends StatelessWidget {
   const _SearchField({required this.hint});
@@ -492,25 +453,21 @@ class _ProfileCard extends StatelessWidget {
   const _ProfileCard({
     required this.name,
     required this.role,
-    required this.syncStatus,
+    required this.libraryMode,
   });
 
   final String name;
   final String role;
-  final SyncStatus syncStatus;
+  final LibraryMode libraryMode;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final statusColor = switch (syncStatus) {
-      SyncStatus.synced => colorScheme.secondary,
-      SyncStatus.pending => colorScheme.primary,
-      SyncStatus.offline => colorScheme.error,
+    final statusColor = switch (libraryMode) {
+      LibraryMode.localOnly => colorScheme.tertiary,
     };
-    final statusLabel = switch (syncStatus) {
-      SyncStatus.synced => 'Synced',
-      SyncStatus.pending => 'Pending changes',
-      SyncStatus.offline => 'Offline mode',
+    final statusLabel = switch (libraryMode) {
+      LibraryMode.localOnly => 'Local library only',
     };
 
     return Card(
@@ -726,7 +683,7 @@ class _SetListCarousel extends StatelessWidget {
                           ),
                           _SetListStatChip(
                             icon: Icons.devices_other_outlined,
-                            label: 'Devices synced soon',
+                            label: 'Performance layout saved',
                           ),
                         ],
                       ),
@@ -944,7 +901,7 @@ class _PerformanceCallout extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Launch performance mode to sync connected devices, activate pedal controls, and roll through your set list hands-free.',
+                    'Launch performance mode to keep lyrics front-and-center, engage pedal controls, and roll through your set list hands-free.',
                   ),
                 ],
               ),
