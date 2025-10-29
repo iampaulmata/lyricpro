@@ -63,6 +63,21 @@ class SetlistRepository {
       return SetlistDetail(setlist: setlist, items: items);
     });
   }
+
+  Future<String> createSetlist(String title) => _db.createSetlist(title);
+
+  Future<String> addSongToSetlist(String setlistId, String songId) => _db.addSongToSetlist(setlistId, songId);
+
+  Future<void> removeSetlistEntry(String entryId) => _db.removeSetlistEntry(entryId);
+
+  Future<void> moveSetlistEntry(String entryId, int newPosition) => _db.moveSetlistEntry(entryId, newPosition);
+
+  /// Convenience helper: create a sample song and append to setlist
+  Future<void> addSampleSongToSet(String setlistId) async {
+    final sid = 'song-${DateTime.now().microsecondsSinceEpoch}';
+  await _db.into(_db.songs).insert(SongsCompanion.insert(id: sid, title: 'New Song'));
+    await _db.addSongToSetlist(setlistId, sid);
+  }
 }
 
 class SetlistSummary {

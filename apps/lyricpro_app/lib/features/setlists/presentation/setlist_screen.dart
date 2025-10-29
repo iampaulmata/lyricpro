@@ -7,11 +7,15 @@ import 'package:lyricpro_app/data/repositories/setlist_repository.dart';
 import 'package:lyricpro_app/features/editor/presentation/editor_screen.dart';
 import 'package:lyricpro_app/features/performance/presentation/performance_screen.dart';
 
+// Clean, minimal Setlist screen. Key goals:
+// - avoid Flexible/Expanded inside unbounded scrollables
+// - choose a stacked scrollable detail pane when height is narrow
+// - provide a simple ReorderableListView and "Add song" wiring to repository
+
 class SetlistScreen extends ConsumerStatefulWidget {
   const SetlistScreen({super.key, required this.setListId});
 
   static const String routeName = 'setlist';
-
   final String setListId;
 
   @override
@@ -19,413 +23,158 @@ class SetlistScreen extends ConsumerStatefulWidget {
 }
 
 class _SetlistScreenState extends ConsumerState<SetlistScreen> {
-  String? _selectedEntryId;
-
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(setlistByIdProvider(widget.setListId));
 
-    return detailAsync.when(
-      data: (detail) {
-        if (detail == null) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Set list')),
-            body: const Center(child: Text('Set list not found')),
-          );
-        }
+    return Scaffold(
+      appBar: AppBar(title: const Text('Setlist')),
+      body: LayoutBuilder(builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 900;
+        final isNarrow = constraints.maxHeight < 600;
 
-        final items = detail.items;
-        if (items.isNotEmpty) {
-          final ids = items.map((e) => e.entry.id).toSet();
-          if (_selectedEntryId == null || !ids.contains(_selectedEntryId)) {
-            _selectedEntryId = items.first.entry.id;
-          }
-        } else {
-          _selectedEntryId = null;
-        }
+        return detailAsync.when(
+          data: (detail) {
+            final selected = detail?.items.firstOrNull;
+            if (isWide) {
+              return Row(children: [
+                Flexible(flex: 3, child: _SetListItemsColumn(detail: detail, onAdd: _onAdd, onReorder: _onReorder)),
+                const VerticalDivider(width: 1),
+                SizedBox(width: 420, child: _SetListDetailPane(detail: detail, selectedItem: selected, isWide: isWide, isNarrow: isNarrow)),
+              ]);
+            }
 
-        final selectedItem = items.firstWhereOrNull(
-          (item) => item.entry.id == _selectedEntryId,
-        );
-        final selectedSongId = selectedItem?.song?.id;
-
-        final theme = Theme.of(context);
-
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final bool isWide = constraints.maxWidth > 1080;
-
-            return Scaffold(
-              appBar: AppBar(
-                title: Text('Set list • ${detail.setlist.title}'),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.more_vert),
-                    onPressed: () {},
-                  ),
-                ],
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(40),
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      '${items.length} songs • Updated ${_timeAgo(detail.setlist.updatedAt)}',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ),
-                ),
-              ),
-              body: SafeArea(
-                child: Row(
-                  children: [
-                    if (isWide)
-                      SizedBox(
-                        width: 360,
-                        child: _SongOrderList(
-                          items: items,
-                          selectedEntryId: _selectedEntryId,
-                          onSelectionChanged: (value) {
-                            setState(() => _selectedEntryId = value);
-                          },
-                        ),
-                      ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: _SetListDetailPane(
-                          detail: detail,
-                          selectedItem: selectedItem,
-                          isWide: isWide,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              bottomNavigationBar: isWide
-                  ? null
-                  : _BottomActions(
-                      onAddSong: () {},
-                      onOpenPerformance: () {
-                        context.pushNamed(PerformanceScreen.routeName);
-                      },
-                      onOpenEditor: selectedSongId == null
-                          ? null
-                          : () {
-                              context.pushNamed(
-                                EditorScreen.routeName,
-                                extra: selectedSongId,
-                              );
-                            },
-                      songCount: items.length,
-                    ),
-            );
+            return Column(children: [
+              Expanded(child: _SetListItemsColumn(detail: detail, onAdd: _onAdd, onReorder: _onReorder)),
+              Container(height: 360, child: _SetListDetailPane(detail: detail, selectedItem: selected, isWide: isWide, isNarrow: isNarrow)),
+            ]);
           },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, st) => Center(child: Text('Error: $e')),
         );
-      },
-      error: (error, stack) => Scaffold(
-        appBar: AppBar(title: const Text('Set list')),
-        body: Center(child: Text('Failed to load set list: $error')),
-      ),
-      loading: () => Scaffold(
-        appBar: AppBar(title: Text('Set list')),
-        body: Center(child: CircularProgressIndicator()),
+      }),
+      bottomNavigationBar: _BottomActions(
+        onAddSong: _onAdd,
+        onOpenPerformance: _onOpenPerformance,
+        onOpenEditor: null,
+        songCount: _detailCount(ref, widget.setListId),
       ),
     );
   }
 
-  String _timeAgo(DateTime time) {
-    final now = DateTime.now();
-    final diff = now.difference(time);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
-    if (diff.inHours < 24) return '${diff.inHours} hr ago';
-    return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
+  int _detailCount(WidgetRef ref, String id) {
+    final det = ref.read(setlistByIdProvider(id));
+    return det.when(data: (d) => d?.items.length ?? 0, loading: () => 0, error: (_, __) => 0);
+  }
+
+  void _onAdd() async {
+    await ref.read(setlistRepositoryProvider).addSampleSongToSet(widget.setListId);
+  }
+
+  void _onOpenPerformance() {
+    if (!mounted) return;
+    context.pushNamed(PerformanceScreen.routeName);
+  }
+
+  void _onReorder(int oldIndex, int newIndex) async {
+    final det = ref.read(setlistByIdProvider(widget.setListId));
+    final detail = det.when(data: (d) => d, loading: () => null, error: (_, __) => null);
+    if (detail == null) return;
+    final items = detail.items;
+    if (oldIndex < 0 || oldIndex >= items.length) return;
+    final item = items[oldIndex];
+    final target = newIndex.clamp(0, items.length - 1) as int;
+    await ref.read(setlistRepositoryProvider).moveSetlistEntry(item.entry.id, target);
   }
 }
 
-class _SongOrderList extends StatelessWidget {
-  const _SongOrderList({
-    required this.items,
-    required this.selectedEntryId,
-    required this.onSelectionChanged,
-  });
+class _SetListItemsColumn extends StatelessWidget {
+  const _SetListItemsColumn({required this.detail, required this.onAdd, required this.onReorder});
 
-  final List<SetlistItem> items;
-  final String? selectedEntryId;
-  final ValueChanged<String> onSelectionChanged;
+  final SetlistDetail? detail;
+  final VoidCallback onAdd;
+  final void Function(int, int) onReorder;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
+    final items = detail?.items ?? const <SetlistItem>[];
     return Card(
-      margin: const EdgeInsets.all(24),
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Song order',
-              style: Theme.of(context).textTheme.titleLarge,
+      margin: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          ListTile(title: const Text('Songs'), trailing: OutlinedButton(onPressed: onAdd, child: const Text('Add'))),
+          Expanded(
+            child: ReorderableListView.builder(
+              onReorder: onReorder,
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final it = items[index];
+                return ListTile(key: ValueKey(it.entry.id), title: Text(it.song?.title ?? 'Untitled'));
+              },
             ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.separated(
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  final isSelected = item.entry.id == selectedEntryId;
-                  return ListTile(
-                    selected: isSelected,
-                    selectedTileColor: colorScheme.primary.withValues(alpha: 0.16),
-                    leading: CircleAvatar(
-                      backgroundColor: colorScheme.primary.withValues(alpha: 0.12),
-                      child: Text('${index + 1}'),
-                    ),
-                    title: Text(item.song?.title ?? 'Unknown song'),
-                    subtitle: Text(item.song?.artist ?? 'Unknown artist'),
-                    trailing: const Icon(Icons.drag_handle),
-                    onTap: () => onSelectionChanged(item.entry.id),
-                    onLongPress: () {
-                      final songId = item.song?.id;
-                      if (songId != null) {
-                        context.pushNamed(EditorScreen.routeName, extra: songId);
-                      }
-                    },
-                  );
-                },
-                separatorBuilder: (_, __) => const Divider(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.add),
-              label: const Text('Add song'),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _SetListDetailPane extends StatelessWidget {
-  const _SetListDetailPane({
-    required this.detail,
-    required this.selectedItem,
-    required this.isWide,
-  });
+  const _SetListDetailPane({required this.detail, required this.selectedItem, required this.isWide, required this.isNarrow});
 
-  final SetlistDetail detail;
+  final SetlistDetail? detail;
   final SetlistItem? selectedItem;
   final bool isWide;
+  final bool isNarrow;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final song = selectedItem?.song;
-    final customKey = selectedItem?.entry.customKey;
-    final customTempo = selectedItem?.entry.customTempo;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Card(
-          elevation: 0,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            song?.title ?? 'No song selected',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(song?.artist ?? 'Add a song to this slot'),
-                        ],
-                      ),
-                    ),
-                    if (song != null)
-                      FilledButton.tonalIcon(
-                        onPressed: () {
-                          context.pushNamed(EditorScreen.routeName, extra: song.id);
-                        },
-                        icon: const Icon(Icons.edit_note),
-                        label: const Text('Open editor'),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    if (customKey != null)
-                      _InfoChip(
-                        icon: Icons.music_note_outlined,
-                        label: 'Key $customKey',
-                      ),
-                    if (customTempo != null)
-                      _InfoChip(
-                        icon: Icons.timer_outlined,
-                        label: '$customTempo BPM',
-                      ),
-                    _InfoChip(
-                      icon: Icons.sell_outlined,
-                      label: '${detail.items.length} total songs',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Card(
-                  elevation: 0,
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Song preview',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 16),
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-                            ),
-                            padding: const EdgeInsets.all(24),
-                            child: SingleChildScrollView(
-                              child: Text(
-                                song?.content ?? 'No lyrics yet',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              if (isWide) const SizedBox(width: 24),
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: LayoutBuilder(builder: (context, constraints) {
+        final compact = isNarrow || constraints.maxHeight < 520;
+        if (compact) {
+          return SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(song?.title ?? 'No song selected'))),
+              const SizedBox(height: 12),
+              Card(child: Container(height: 240, padding: const EdgeInsets.all(16), child: SingleChildScrollView(child: Text(song?.content ?? 'No lyrics')))),
+            ]),
+          );
+        }
+
+        // Non-compact: two-column layout with flexible preview and an optional
+        // right-side overrides column when wide.
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(song?.title ?? 'No song selected'))),
+          const SizedBox(height: 12),
+          Expanded(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: Card(child: Padding(padding: const EdgeInsets.all(16), child: SingleChildScrollView(child: Text(song?.content ?? 'No lyrics'))))),
+              if (isWide) const SizedBox(width: 12),
               if (isWide)
-                SizedBox(
-                  width: 320,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Card(
-                          elevation: 0,
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Overrides',
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                                const SizedBox(height: 16),
-                                _OverrideField(
-                                  label: 'Key',
-                                  value: selectedItem?.entry.customKey ?? song?.songKey ?? '-',
-                                  onPressed: () {},
-                                ),
-                                _OverrideField(
-                                  label: 'Tempo',
-                                  value: (selectedItem?.entry.customTempo ??
-                                              song?.tempo) !=
-                                          null
-                                      ? '${selectedItem?.entry.customTempo ?? song?.tempo} BPM'
-                                      : '-',
-                                  onPressed: () {},
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Section notes',
-                                  style: Theme.of(context).textTheme.titleMedium,
-                                ),
-                                const SizedBox(height: 8),
-                                Expanded(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(12),
-                                      color: colorScheme.surfaceContainerHigh,
-                                    ),
-                                    child: Text(
-                                      selectedItem?.entry.notes ?? 'Add song-specific notes',
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                FilledButton(
-                                  onPressed: () {},
-                                  child: const Text('Apply to entire set'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const _PerformanceStrip(),
-                    ],
-                  ),
-                ),
-            ],
+                SizedBox(width: 300, child: Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Overrides'), const SizedBox(height: 8), Text(selectedItem?.entry.notes ?? '')])))),
+            ]),
           ),
-        ),
-      ],
+        ]);
+      }),
     );
   }
 }
 
 class _InfoChip extends StatelessWidget {
   const _InfoChip({required this.icon, required this.label});
-
   final IconData icon;
   final String label;
 
   @override
-  Widget build(BuildContext context) {
-    return Chip(
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-    );
-  }
+  Widget build(BuildContext context) => Chip(avatar: Icon(icon, size: 18), label: Text(label));
 }
 
 class _OverrideField extends StatelessWidget {
-  const _OverrideField({
-    required this.label,
-    required this.value,
-    required this.onPressed,
-  });
-
+  const _OverrideField({required this.label, required this.value, required this.onPressed});
   final String label;
   final String value;
   final VoidCallback onPressed;
@@ -434,64 +183,22 @@ class _OverrideField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        ),
-        child: Row(
-          children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-            const Spacer(),
-            Text(value),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right),
-          ],
-        ),
-      ),
+      child: OutlinedButton(onPressed: onPressed, child: Row(children: [Text(label), const Spacer(), Text(value)])),
     );
   }
 }
 
 class _PerformanceStrip extends StatelessWidget {
   const _PerformanceStrip();
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      elevation: 0,
-      color: colorScheme.primary.withValues(alpha: 0.12),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        leading: CircleAvatar(
-          backgroundColor: colorScheme.primary,
-          child: const Icon(Icons.play_arrow_rounded, color: Colors.white),
-        ),
-        title: const Text('Start performance mode'),
-        subtitle: const Text('Sync with connected devices'),
-        trailing: FilledButton(
-          onPressed: () {},
-          child: const Text('Open'),
-        ),
-        onTap: () {},
-      ),
-    );
+    return Card(color: colorScheme.primary.withAlpha(20), child: ListTile(title: const Text('Start performance mode'), trailing: FilledButton(onPressed: () {}, child: const Text('Open'))));
   }
 }
 
 class _BottomActions extends StatelessWidget {
-  const _BottomActions({
-    required this.onAddSong,
-    required this.onOpenPerformance,
-    required this.onOpenEditor,
-    required this.songCount,
-  });
+  const _BottomActions({required this.onAddSong, required this.onOpenPerformance, required this.onOpenEditor, required this.songCount});
 
   final VoidCallback onAddSong;
   final VoidCallback onOpenPerformance;
@@ -501,35 +208,9 @@ class _BottomActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          top: BorderSide(color: Theme.of(context).dividerColor),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      child: Row(
-        children: [
-          OutlinedButton(
-            onPressed: onAddSong,
-            child: const Text('Add song'),
-          ),
-          const SizedBox(width: 12),
-          FilledButton.icon(
-            onPressed: onOpenPerformance,
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text('Performance'),
-          ),
-          const SizedBox(width: 12),
-          FilledButton.tonalIcon(
-            onPressed: onOpenEditor,
-            icon: const Icon(Icons.edit_note),
-            label: const Text('Editor'),
-          ),
-          const Spacer(),
-          Text('$songCount songs'),
-        ],
-      ),
+      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, border: Border(top: BorderSide(color: Theme.of(context).dividerColor))),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(children: [OutlinedButton(onPressed: onAddSong, child: const Text('Add song')), const SizedBox(width: 12), FilledButton.icon(onPressed: onOpenPerformance, icon: const Icon(Icons.play_arrow_rounded), label: const Text('Performance')), const Spacer(), Text('$songCount songs')]),
     );
   }
 }
