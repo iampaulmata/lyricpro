@@ -21,4 +21,3 @@ class SetItems extends Table {
   IntColumn get position => integer().withDefault(const Constant(0))();
   TextColumn get overridesJson => text().nullable()();
 }
-    IntColumn get position => integer().withDefault(const Constant(0))();

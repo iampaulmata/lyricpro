@@ -1,101 +1,58 @@
 import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-import 'package:lyricpro_app/data/local/tables.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-
-
+import 'tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(
-  tables: [
-    Songs,
-    Tags,
-    SongTags,
-    Setlists,
-    SetlistEntries,
-    SyncQueueEntries,
-  ],
-)
+LazyDatabase _openConnection() {
+  return LazyDatabase(() async {
+    Directory documentsDirectory = await getApplicationDocumentsDirectory();
+    final dbFolder = Directory(p.join(documentsDirectory.path, 'lyricpro'));
+    if (!await dbFolder.exists()) {
+      await dbFolder.create(recursive: true);
+    }
+    final file = File(p.join(dbFolder.path, 'lyricpro.sqlite'));
+    return NativeDatabase.open(file);
+  });
+}
+
+@DriftDatabase(tables: [SetLists, Songs, SetItems])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
   int get schemaVersion => 1;
 
-  Future<void> seedDemoContent() async {
-    final existingSongs = await select(songs).get();
-    if (existingSongs.isNotEmpty) return;
+  // SetList CRUD
+  Future<int> createSetList(String name) => into(setLists).insert(SetListsCompanion(
+        name: Value(name),
+      ));
 
-    await transaction(() async {
-      await into(songs).insert(
-        SongsCompanion.insert(
-          id: 'song-1',
-          title: 'Higher Ground',
-          artist: const Value('Traditional'),
-          content: const Value('[Bb]Amazing [F]grace how [Gm]sweet the [Eb]sound'),
-          songKey: const Value('Bb'),
-          tempo: const Value(98),
-          isOfflineAvailable: const Value(true),
-        ),
-      );
+  Future<List<SetList>> getAllSetLists() => select(setLists).get();
+  Stream<List<SetList>> watchAllSetLists() => select(setLists).watch();
 
-      await into(songs).insert(
-        SongsCompanion.insert(
-          id: 'song-2',
-          title: 'Firelight',
-          artist: const Value('Young & Radiant'),
-          content: const Value('[G]Light up the [D]night we [Em]rise'),
-          songKey: const Value('G'),
-          tempo: const Value(104),
-        ),
-      );
+  // Songs
+  Future<int> createSong(Insertable<Song> song) => into(songs).insert(song);
 
-      await into(tags).insert(TagsCompanion.insert(id: 'tag-1', name: 'Gospel'));
-      await into(tags).insert(TagsCompanion.insert(id: 'tag-2', name: 'Indie'));
-
-      await into(songTags)
-          .insert(SongTagsCompanion.insert(songId: 'song-1', tagId: 'tag-1'));
-      await into(songTags)
-          .insert(SongTagsCompanion.insert(songId: 'song-2', tagId: 'tag-2'));
-
-      await into(setlists).insert(
-        SetlistsCompanion.insert(
-          id: 'setlist-1',
-          title: 'Tonight @ The Blue Note',
-          notes: const Value('Intro vamp over Bb • Bridge hold'),
-          eventDate: Value(DateTime.now().add(const Duration(days: 3))),
-        ),
-      );
-
-      await into(setlistEntries).insert(
-        SetlistEntriesCompanion.insert(
-          id: 'entry-1',
-          setlistId: 'setlist-1',
-          songId: 'song-1',
-          position: 0,
-          notes: const Value('Open with swell'),
-        ),
-      );
-
-      await into(setlistEntries).insert(
-        SetlistEntriesCompanion.insert(
-          id: 'entry-2',
-          setlistId: 'setlist-1',
-          songId: 'song-2',
-          position: 1,
-        ),
-      );
-    });
+  // Set items
+  Future<int> addSongToSet(int setId, int songId) async {
+    final maxPos = await (select(setItems)..where((t) => t.setId.equals(setId))).get();
+    final nextPos = maxPos.isEmpty ? 0 : (maxPos.map((e) => e.position).reduce((a, b) => a > b ? a : b) + 1);
+    return into(setItems).insert(SetItemsCompanion(
+      setId: Value(setId),
+      songId: Value(songId),
+      position: Value(nextPos),
+    ));
   }
-}
 
-LazyDatabase _openConnection() {
-  return LazyDatabase(() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dir.path, 'lyricpro.sqlite'));
-    return NativeDatabase.createInBackground(file);
-  });
+  Future<List<SetItem>> getItemsForSet(int setId) => (select(setItems)..where((t) => t.setId.equals(setId))..orderBy([(t) => OrderingTerm(expression: t.position)])).get();
+
+  Future<void> reorderItem(int itemId, int newPosition) async {
+    // naive reorder: update the item position
+    await (update(setItems)..where((t) => t.id.equals(itemId))).write(SetItemsCompanion(position: Value(newPosition)));
+  }
 }
